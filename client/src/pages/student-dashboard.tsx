@@ -44,40 +44,40 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
+      <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900" data-testid="student-dashboard-title">
+            <h1 className="text-xl lg:text-2xl font-semibold text-gray-900" data-testid="student-dashboard-title">
               Student Dashboard
             </h1>
-            <p className="text-gray-600" data-testid="student-welcome">
+            <p className="text-sm lg:text-base text-gray-600" data-testid="student-welcome">
               Welcome back, {student?.name || "Student"}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                <User className="text-gray-600 h-4 w-4" />
+          <div className="flex items-center space-x-2 lg:space-x-4 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              <div className="w-6 lg:w-8 h-6 lg:h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                <User className="text-gray-600 h-3 lg:h-4 w-3 lg:w-4" />
               </div>
               <div>
-                <span className="text-gray-700 font-medium" data-testid="student-name">
+                <span className="text-sm lg:text-base text-gray-700 font-medium" data-testid="student-name">
                   {student?.name}
                 </span>
-                <p className="text-sm text-gray-500" data-testid="student-id">
+                <p className="text-xs lg:text-sm text-gray-500" data-testid="student-id">
                   ID: {student?.studentId}
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
+            <Button variant="outline" onClick={handleLogout} data-testid="button-logout" className="text-xs lg:text-sm">
               Logout
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="p-6 max-w-6xl mx-auto">
+      <main className="p-4 lg:p-6 max-w-6xl mx-auto">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
           <Card className="shadow-sm border border-gray-200">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -142,7 +142,7 @@ export default function StudentDashboard() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
           {/* Recent Attendance */}
           <Card className="shadow-sm border border-gray-200">
             <CardHeader>
@@ -244,12 +244,12 @@ export default function StudentDashboard() {
         </div>
 
         {/* Attendance Calendar */}
-        <Card className="mt-6 shadow-sm border border-gray-200">
+        <Card className="mt-4 lg:mt-6 shadow-sm border border-gray-200">
           <CardHeader>
             <CardTitle data-testid="attendance-calendar-title">This Month's Attendance</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 gap-2 text-center text-sm">
+            <div className="grid grid-cols-7 gap-1 lg:gap-2 text-center text-xs lg:text-sm">
               <div className="font-semibold text-gray-600 p-2">Sun</div>
               <div className="font-semibold text-gray-600 p-2">Mon</div>
               <div className="font-semibold text-gray-600 p-2">Tue</div>

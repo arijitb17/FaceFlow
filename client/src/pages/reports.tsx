@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { AttendanceSession, Class } from "@shared/schema";
 
 export default function Reports() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{

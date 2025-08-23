@@ -15,6 +15,7 @@ import { Plus, Search, Edit, Trash2, GraduationCap, Users, Clock } from "lucide-
 import type { Class } from "@shared/schema";
 
 export default function Classes() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newClass, setNewClass] = useState({
@@ -72,10 +73,20 @@ export default function Classes() {
   if (isLoading) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)}
+        />
         <div className="flex-1">
-          <Header title="Classes" subtitle="Loading..." />
-          <div className="p-6">
+          <Header 
+            title="Classes" 
+            subtitle="Loading..." 
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+          <div className="p-4 lg:p-6">
             <div className="animate-pulse space-y-4">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-gray-200 h-32 rounded-lg"></div>
@@ -89,24 +100,31 @@ export default function Classes() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Classes" 
           subtitle="Manage your classes and enrollment"
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Header Actions */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center space-x-4 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   placeholder="Search classes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-64"
+                  className="pl-10 w-full sm:w-64"
                   data-testid="input-search-classes"
                 />
               </div>
@@ -114,7 +132,7 @@ export default function Classes() {
             
             <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
               <DialogTrigger asChild>
-                <Button className="bg-primary text-white hover:bg-primary/90" data-testid="button-add-class">
+                <Button className="bg-primary text-white hover:bg-primary/90 w-full sm:w-auto" data-testid="button-add-class">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Class
                 </Button>
@@ -187,7 +205,7 @@ export default function Classes() {
           </div>
 
           {/* Classes Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
             {filteredClasses.map((cls: Class, index: number) => (
               <Card key={cls.id} className="shadow-sm border border-gray-200" data-testid={`class-card-${index}`}>
                 <CardHeader className="pb-3">
@@ -245,14 +263,16 @@ export default function Classes() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 text-xs"
                       data-testid={`button-view-class-${index}`}
                     >
-                      View Details
+                      <span className="hidden sm:inline">View Details</span>
+                      <span className="sm:hidden">View</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="px-2"
                       data-testid={`button-edit-class-${index}`}
                     >
                       <Edit className="h-3 w-3" />
@@ -260,7 +280,7 @@ export default function Classes() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive px-2"
                       data-testid={`button-delete-class-${index}`}
                     >
                       <Trash2 className="h-3 w-3" />

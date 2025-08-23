@@ -11,6 +11,7 @@ import { User, Clock } from "lucide-react";
 import { useState } from "react";
 
 export default function Dashboard() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [batchResults, setBatchResults] = useState<any>(null);
 
@@ -58,12 +59,22 @@ export default function Dashboard() {
   if (statsLoading) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)}
+        />
         <div className="flex-1">
-          <Header title="Dashboard" subtitle="Loading..." />
-          <div className="p-6">
+          <Header 
+            title="Dashboard" 
+            subtitle="Loading..." 
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+          <div className="p-4 lg:p-6">
             <div className="animate-pulse">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className="bg-gray-200 h-32 rounded-xl"></div>
                 ))}
@@ -80,32 +91,39 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Dashboard" 
           subtitle="Monitor attendance and manage your classes"
           showStartAttendance
           onStartAttendance={() => {}}
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Stats Cards */}
           {stats && (
-            <div className="mb-8">
+            <div className="mb-6 lg:mb-8">
               <StatsCards stats={stats} />
             </div>
           )}
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
             {/* Live Attendance Section */}
             <div className="lg:col-span-2">
               <WebcamCapture onBatchComplete={handleBatchComplete} />
             </div>
 
             {/* Right Sidebar Content */}
-            <div className="space-y-6">
+            <div className="space-y-4 lg:space-y-6">
               {/* Today's Classes */}
               <Card className="shadow-sm border border-gray-200">
                 <CardHeader>
@@ -183,7 +201,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Reports Table */}
-          <Card className="mt-8 shadow-sm border border-gray-200">
+          <Card className="mt-6 lg:mt-8 shadow-sm border border-gray-200">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg font-semibold text-gray-900" data-testid="reports-table-title">
@@ -199,22 +217,22 @@ export default function Dashboard() {
                 <table className="w-full" data-testid="reports-table">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Class
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Present
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                         Absent
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                         Accuracy
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -222,38 +240,40 @@ export default function Dashboard() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {recentSessions.slice(0, 3).map((session: any, index: number) => (
                       <tr key={session.id} className="hover:bg-gray-50" data-testid={`report-row-${index}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
+                        <td className="px-3 lg:px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900 truncate">
                             {classes?.find((c: any) => c.id === session.classId)?.name || "Unknown Class"}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
                           {new Date(session.date).toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {session.totalStudentsRecognized || 0}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
                           {Math.max(0, 30 - (session.totalStudentsRecognized || 0))}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                           <Badge variant="secondary">
                             {((session.averageConfidence || 0) * 100).toFixed(1)}%
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 mr-3" data-testid={`button-view-report-${index}`}>
-                            View
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" data-testid={`button-export-report-${index}`}>
-                            Export
-                          </Button>
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-1">
+                            <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80 text-xs px-2" data-testid={`button-view-report-${index}`}>
+                              View
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800 text-xs px-2 hidden sm:inline-flex" data-testid={`button-export-report-${index}`}>
+                              Export
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                     {recentSessions.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500" data-testid="no-reports-message">
+                        <td colSpan={6} className="px-3 lg:px-6 py-4 text-center text-gray-500" data-testid="no-reports-message">
                           No attendance reports available
                         </td>
                       </tr>

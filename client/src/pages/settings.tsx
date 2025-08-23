@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 export default function Settings() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
@@ -143,15 +144,22 @@ export default function Settings() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Settings" 
           subtitle="Manage your account and system preferences"
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <div className="max-w-4xl mx-auto space-y-4 lg:space-y-6">
             {/* Profile Settings */}
             <Card className="shadow-sm border border-gray-200">
               <CardHeader>
@@ -161,7 +169,7 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name">Full Name</Label>
                     <Input
@@ -227,7 +235,7 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="current-password">Current Password</Label>
                     <div className="relative">
@@ -391,7 +399,7 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="capture-interval">Default Capture Interval</Label>
                     <Select 
@@ -467,7 +475,7 @@ export default function Settings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <Button variant="outline" data-testid="button-export-data">
                     Export All Data
                   </Button>

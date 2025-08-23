@@ -12,6 +12,7 @@ import { Brain, Upload, Play, CheckCircle, AlertCircle, User, Camera } from "luc
 import type { Student } from "@shared/schema";
 
 export default function Training() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTraining, setIsTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -103,10 +104,20 @@ export default function Training() {
   if (studentsLoading) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)}
+        />
         <div className="flex-1">
-          <Header title="Training" subtitle="Loading..." />
-          <div className="p-6">
+          <Header 
+            title="Training" 
+            subtitle="Loading..." 
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+          <div className="p-4 lg:p-6">
             <div className="animate-pulse space-y-4">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-gray-200 h-32 rounded-lg"></div>
@@ -120,14 +131,21 @@ export default function Training() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Training" 
           subtitle="Manage face recognition model training"
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Training Status Card */}
           <Card className="mb-6 shadow-sm border border-gray-200">
             <CardHeader>

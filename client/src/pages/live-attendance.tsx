@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState } from "react";
 
 export default function LiveAttendance() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [batchResults, setBatchResults] = useState<any>(null);
 
@@ -40,22 +41,29 @@ export default function LiveAttendance() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Live Attendance" 
           subtitle="Capture and process classroom attendance in real-time"
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
             {/* Main Webcam Capture */}
             <div className="lg:col-span-3">
               <WebcamCapture onBatchComplete={handleBatchComplete} />
             </div>
 
             {/* Sidebar Info */}
-            <div className="space-y-6">
+            <div className="space-y-4 lg:space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold">Capture Tips</CardTitle>

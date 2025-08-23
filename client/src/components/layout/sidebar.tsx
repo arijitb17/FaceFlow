@@ -8,7 +8,8 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  UserCheck
+  UserCheck,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,20 +26,49 @@ const bottomNavigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const [location] = useLocation();
 
   return (
-    <div className="w-64 bg-white shadow-lg border-r border-gray-200">
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-gray-600 bg-opacity-75 z-20 lg:hidden" 
+          onClick={onClose}
+          data-testid="sidebar-backdrop"
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg border-r border-gray-200 transform transition-transform lg:translate-x-0 lg:static lg:inset-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )} data-testid="sidebar">
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <UserCheck className="text-white text-lg" data-testid="logo-icon" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <UserCheck className="text-white text-lg" data-testid="logo-icon" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900" data-testid="app-title">SmartAttend</h1>
+              <p className="text-sm text-gray-500" data-testid="app-subtitle">AI Recognition</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900" data-testid="app-title">SmartAttend</h1>
-            <p className="text-sm text-gray-500" data-testid="app-subtitle">AI Recognition</p>
-          </div>
+          {/* Mobile close button */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            data-testid="sidebar-close"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
       </div>
       
@@ -95,5 +125,6 @@ export default function Sidebar() {
         </div>
       </nav>
     </div>
+    </>
   );
 }
