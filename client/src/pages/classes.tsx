@@ -31,7 +31,8 @@ export default function Classes() {
 
   const addClassMutation = useMutation({
     mutationFn: async (classData: typeof newClass) => {
-      return apiRequest("POST", "/api/classes", classData);
+      const response = await apiRequest("POST", "/api/classes", classData);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/classes"] });

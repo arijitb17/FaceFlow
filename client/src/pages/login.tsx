@@ -19,7 +19,8 @@ export default function Login() {
 
   const teacherLoginMutation = useMutation({
     mutationFn: async (credentials: typeof teacherForm) => {
-      return apiRequest("POST", "/api/auth/login", { ...credentials, role: "teacher" });
+      const response = await apiRequest("POST", "/api/auth/login", { ...credentials, role: "teacher" });
+      return await response.json();
     },
     onSuccess: (data) => {
       localStorage.setItem("authToken", data.token);
@@ -42,7 +43,8 @@ export default function Login() {
 
   const studentLoginMutation = useMutation({
     mutationFn: async (credentials: typeof studentForm) => {
-      return apiRequest("POST", "/api/auth/student-login", credentials);
+      const response = await apiRequest("POST", "/api/auth/student-login", credentials);
+      return await response.json();
     },
     onSuccess: (data) => {
       localStorage.setItem("authToken", data.token);

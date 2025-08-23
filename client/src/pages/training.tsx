@@ -23,7 +23,8 @@ export default function Training() {
 
   const trainModelMutation = useMutation({
     mutationFn: async (studentPhotos: { [studentId: string]: string[] }) => {
-      return apiRequest("POST", "/api/face-recognition/train", { studentPhotos });
+      const response = await apiRequest("POST", "/api/face-recognition/train", { studentPhotos });
+      return await response.json();
     },
     onSuccess: () => {
       setIsTraining(false);

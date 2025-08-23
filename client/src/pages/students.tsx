@@ -29,7 +29,8 @@ export default function Students() {
 
   const addStudentMutation = useMutation({
     mutationFn: async (student: typeof newStudent) => {
-      return apiRequest("POST", "/api/students", student);
+      const response = await apiRequest("POST", "/api/students", student);
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
@@ -51,7 +52,8 @@ export default function Students() {
 
   const deleteStudentMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/students/${id}`);
+      const response = await apiRequest("DELETE", `/api/students/${id}`);
+      return response.status === 204 ? null : await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/students"] });
