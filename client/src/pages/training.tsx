@@ -104,9 +104,6 @@ export default function Training() {
   if (studentsLoading) {
     return (
       <div className="flex h-screen">
-        <div className="hidden lg:block">
-          <Sidebar />
-        </div>
         <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)}
@@ -131,9 +128,6 @@ export default function Training() {
 
   return (
     <div className="flex h-screen">
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
       <Sidebar 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)}

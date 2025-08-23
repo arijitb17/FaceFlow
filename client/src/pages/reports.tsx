@@ -106,10 +106,17 @@ export default function Reports() {
   if (sessionsLoading) {
     return (
       <div className="flex h-screen">
-        <Sidebar />
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)}
+        />
         <div className="flex-1">
-          <Header title="Reports" subtitle="Loading..." />
-          <div className="p-6">
+          <Header 
+            title="Reports" 
+            subtitle="Loading..." 
+            onMenuClick={() => setIsSidebarOpen(true)}
+          />
+          <div className="p-4 lg:p-6">
             <div className="animate-pulse space-y-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="bg-gray-200 h-20 rounded-lg"></div>
@@ -123,14 +130,18 @@ export default function Reports() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 overflow-hidden">
         <Header 
           title="Reports" 
           subtitle="View and export attendance analytics"
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
         
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             <Card className="shadow-sm border border-gray-200">

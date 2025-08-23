@@ -59,9 +59,6 @@ export default function Dashboard() {
   if (statsLoading) {
     return (
       <div className="flex h-screen">
-        <div className="hidden lg:block">
-          <Sidebar />
-        </div>
         <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)}
@@ -91,9 +88,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen">
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
       <Sidebar 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)}
