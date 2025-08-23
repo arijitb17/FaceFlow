@@ -9,6 +9,95 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Authentication
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password, role } = req.body;
+      
+      if (role === "teacher") {
+        const user = await storage.getUserByUsername(username);
+        if (!user || user.password !== password) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+        
+        const token = "mock-jwt-token-" + user.id;
+        res.json({ 
+          token, 
+          user: { id: user.id, name: user.name, username: user.username, role: user.role }
+        });
+      } else {
+        res.status(400).json({ message: "Invalid role" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/student-login", async (req, res) => {
+    try {
+      const { studentId, password } = req.body;
+      
+      const student = await storage.getStudentByStudentId(studentId);
+      if (!student || password !== "student123") {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      
+      const token = "mock-jwt-token-student-" + student.id;
+      res.json({ 
+        token, 
+        student: { id: student.id, name: student.name, studentId: student.studentId }
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ message: "No token provided" });
+      }
+      
+      // Mock implementation - in production, verify JWT
+      const user = await storage.getUser("teacher-1");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({ id: user.id, name: user.name, username: user.username, role: user.role });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get user info" });
+    }
+  });
+
+  app.put("/api/auth/change-password", async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      
+      // Mock implementation - in production, verify current password and update
+      if (currentPassword !== "password123") {
+        return res.status(400).json({ message: "Current password incorrect" });
+      }
+      
+      // In a real app, hash the password and save to database
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
+  app.put("/api/auth/profile", async (req, res) => {
+    try {
+      const { name, email } = req.body;
+      
+      // Mock implementation - in production, update user profile
+      res.json({ message: "Profile updated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   // Students
   app.get("/api/students", async (req, res) => {
     try {

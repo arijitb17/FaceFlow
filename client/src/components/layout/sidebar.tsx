@@ -23,7 +23,6 @@ const navigation = [
 
 const bottomNavigation = [
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Logout", href: "/logout", icon: LogOut },
 ];
 
 export default function Sidebar() {
@@ -79,6 +78,19 @@ export default function Sidebar() {
                 {item.name}
               </Link>
             ))}
+            <button
+              onClick={() => {
+                localStorage.removeItem("authToken");
+                localStorage.removeItem("userRole");
+                localStorage.removeItem("userId");
+                window.location.href = "/login";
+              }}
+              className="flex items-center w-full px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              data-testid="nav-logout"
+            >
+              <LogOut className="w-5 h-5 mr-3" />
+              Logout
+            </button>
           </div>
         </div>
       </nav>
