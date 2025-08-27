@@ -1,7 +1,7 @@
 // routes/users.ts
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
-import { authenticateToken, requireAdmin } from "./auth";
+import { authenticateToken, requireAdmin } from "./auth_routes";
 import { randomBytes } from "crypto";
 import { sendInviteEmail } from "../utils/mail";
 

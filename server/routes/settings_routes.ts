@@ -1,6 +1,6 @@
 // routes/settings.ts
 import type { Express, Request, Response } from "express";
-import { authenticateToken, requireAdmin } from "./auth";
+import { authenticateToken, requireAdmin } from "./auth_routes";
 
 export function registerSettingsRoutes(app: Express) {
   // Get all settings
