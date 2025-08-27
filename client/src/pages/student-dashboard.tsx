@@ -2,37 +2,52 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, TrendingUp, CheckCircle, XCircle } from "lucide-react";
-import type { AttendanceSession, Class } from "@shared/schema";
+import { Calendar, User, CheckCircle, XCircle } from "lucide-react";
+import type { Class } from "@shared/schema";
+
+interface AttendanceRecord {
+  id: string;
+  classId: string;
+  date: string;
+  isPresent: boolean;
+  className: string;
+  classCode: string;
+}
+
+interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  email: string;
+  isActive: boolean;
+}
 
 export default function StudentDashboard() {
   const studentId = localStorage.getItem("userId");
 
-  const { data: student } = useQuery({
-    queryKey: [`/api/students/${studentId}`],
+  // ✅ Use /api/auth/me for profile (works already)
+  const { data: student } = useQuery<AuthUser>({
+    queryKey: ["/api/auth/me"],
   });
 
-  const { data: sessions } = useQuery({
-    queryKey: ["/api/attendance-sessions"],
-  });
-
-  const { data: classes } = useQuery({
+  // Fetch classes
+  const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
   });
 
-  // Filter sessions for the student (simplified)
-  const studentSessions = sessions?.slice(0, 10) || [];
-  const attendancePercentage = studentSessions.length > 0 ? 85 : 0; // Mock calculation
-
-  const recentAttendance = studentSessions.slice(0, 5).map((session: AttendanceSession) => {
-    const cls = classes?.find((c: Class) => c.id === session.classId);
-    return {
-      ...session,
-      className: cls?.name || "Unknown Class",
-      classCode: cls?.code || "",
-      isPresent: Math.random() > 0.2 // Mock presence
-    };
+  // Fetch attendance records for this student
+  const { data: attendanceRecords = [] } = useQuery<AttendanceRecord[]>({
+    queryKey: ["/api/attendance", studentId],
   });
+
+  // Compute stats
+  const totalSessions = attendanceRecords.length;
+  const attended = attendanceRecords.filter((r) => r.isPresent).length;
+  const attendancePercentage =
+    totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0;
+
+  const recentAttendance = attendanceRecords.slice(0, 5);
 
   const handleLogout = () => {
     localStorage.removeItem("authToken");
@@ -47,28 +62,26 @@ export default function StudentDashboard() {
       <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl lg:text-2xl font-semibold text-gray-900" data-testid="student-dashboard-title">
+            <h1 className="text-xl lg:text-2xl font-semibold text-gray-900">
               Student Dashboard
             </h1>
-            <p className="text-sm lg:text-base text-gray-600" data-testid="student-welcome">
+            <p className="text-sm lg:text-base text-gray-600">
               Welcome back, {student?.name || "Student"}
             </p>
           </div>
-          <div className="flex items-center space-x-2 lg:space-x-4 w-full sm:w-auto justify-between sm:justify-end">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="w-6 lg:w-8 h-6 lg:h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                <User className="text-gray-600 h-3 lg:h-4 w-3 lg:w-4" />
+          <div className="flex items-center space-x-2 lg:space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                <User className="text-gray-600 h-3 w-3" />
               </div>
               <div>
-                <span className="text-sm lg:text-base text-gray-700 font-medium" data-testid="student-name">
+                <span className="text-sm text-gray-700 font-medium">
                   {student?.name}
                 </span>
-                <p className="text-xs lg:text-sm text-gray-500" data-testid="student-id">
-                  ID: {student?.studentId}
-                </p>
+                <p className="text-xs text-gray-500">ID: {student?.id}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout} data-testid="button-logout" className="text-xs lg:text-sm">
+            <Button variant="outline" onClick={handleLogout}>
               Logout
             </Button>
           </div>
@@ -76,228 +89,101 @@ export default function StudentDashboard() {
       </header>
 
       <main className="p-4 lg:p-6 max-w-6xl mx-auto">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
-          <Card className="shadow-sm border border-gray-200">
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <Card>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Attendance Rate</p>
-                  <p className="text-3xl font-bold text-gray-900" data-testid="attendance-rate">
-                    {attendancePercentage}%
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="text-primary text-xl" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <span className="text-secondary text-sm font-medium">
-                  ↗ Above average
-                </span>
-              </div>
+              <p className="text-gray-600 text-sm">Attendance Rate</p>
+              <p className="text-3xl font-bold">{attendancePercentage}%</p>
             </CardContent>
           </Card>
-
-          <Card className="shadow-sm border border-gray-200">
+          <Card>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Classes Enrolled</p>
-                  <p className="text-3xl font-bold text-gray-900" data-testid="enrolled-classes">
-                    {classes?.length || 0}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
-                  <Calendar className="text-secondary text-xl" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <span className="text-gray-600 text-sm">
-                  Active semester
-                </span>
-              </div>
+              <p className="text-gray-600 text-sm">Classes Enrolled</p>
+              <p className="text-3xl font-bold">{classes.length}</p>
             </CardContent>
           </Card>
-
-          <Card className="shadow-sm border border-gray-200">
+          <Card>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Sessions</p>
-                  <p className="text-3xl font-bold text-gray-900" data-testid="total-sessions">
-                    {studentSessions.length}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                  <Clock className="text-accent text-xl" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <span className="text-gray-600 text-sm">
-                  This semester
-                </span>
-              </div>
+              <p className="text-gray-600 text-sm">Total Sessions</p>
+              <p className="text-3xl font-bold">{totalSessions}</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-          {/* Recent Attendance */}
-          <Card className="shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle data-testid="recent-attendance-title">Recent Attendance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentAttendance.map((record, index) => (
+        {/* Recent Attendance */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Recent Attendance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentAttendance.length > 0 ? (
+              <div className="space-y-3">
+                {recentAttendance.map((r) => (
                   <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    data-testid={`attendance-record-${index}`}
+                    key={r.id}
+                    className="flex items-center justify-between bg-gray-50 p-3 rounded"
                   >
                     <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        record.isPresent ? "bg-secondary/10" : "bg-destructive/10"
-                      }`}>
-                        {record.isPresent ? (
-                          <CheckCircle className="text-secondary h-5 w-5" />
-                        ) : (
-                          <XCircle className="text-destructive h-5 w-5" />
-                        )}
-                      </div>
+                      {r.isPresent ? (
+                        <CheckCircle className="text-green-500 h-5 w-5" />
+                      ) : (
+                        <XCircle className="text-red-500 h-5 w-5" />
+                      )}
                       <div>
-                        <p className="font-medium text-gray-900" data-testid={`class-name-${index}`}>
-                          {record.className}
-                        </p>
-                        <p className="text-sm text-gray-600" data-testid={`class-code-${index}`}>
-                          {record.classCode}
-                        </p>
+                        <p className="font-medium">{r.className}</p>
+                        <p className="text-sm text-gray-600">{r.classCode}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <Badge 
-                        variant={record.isPresent ? "default" : "destructive"}
-                        className={record.isPresent ? "bg-secondary text-white" : ""}
-                        data-testid={`attendance-status-${index}`}
-                      >
-                        {record.isPresent ? "Present" : "Absent"}
+                      <Badge variant={r.isPresent ? "default" : "destructive"}>
+                        {r.isPresent ? "Present" : "Absent"}
                       </Badge>
-                      <p className="text-xs text-gray-500 mt-1" data-testid={`attendance-date-${index}`}>
-                        {new Date(record.date).toLocaleDateString()}
+                      <p className="text-xs text-gray-500">
+                        {new Date(r.date).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
                 ))}
-                {recentAttendance.length === 0 && (
-                  <div className="text-center py-8 text-gray-500" data-testid="no-attendance-records">
-                    <Calendar className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                    <p>No attendance records yet</p>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
+            ) : (
+              <p className="text-gray-500 text-center py-6">
+                No attendance records yet
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Current Classes */}
-          <Card className="shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle data-testid="current-classes-title">Current Classes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {classes?.map((cls: Class, index: number) => (
+        {/* Current Classes */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Current Classes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {classes.length > 0 ? (
+              <div className="space-y-3">
+                {classes.map((cls) => (
                   <div
                     key={cls.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    data-testid={`class-item-${index}`}
+                    className="flex items-center justify-between bg-gray-50 p-3 rounded"
                   >
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                        <Calendar className="text-primary h-5 w-5" />
-                      </div>
+                      <Calendar className="text-primary h-5 w-5" />
                       <div>
-                        <p className="font-medium text-gray-900" data-testid={`current-class-name-${index}`}>
-                          {cls.name}
-                        </p>
-                        <p className="text-sm text-gray-600" data-testid={`current-class-schedule-${index}`}>
+                        <p className="font-medium">{cls.name}</p>
+                        <p className="text-sm text-gray-600">
                           {cls.schedule || "Schedule TBA"}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="secondary" data-testid={`class-attendance-${index}`}>
-                        85% Attendance
-                      </Badge>
-                    </div>
                   </div>
                 ))}
-                {(!classes || classes.length === 0) && (
-                  <div className="text-center py-8 text-gray-500" data-testid="no-classes-enrolled">
-                    <Calendar className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                    <p>No classes enrolled</p>
-                  </div>
-                )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Attendance Calendar */}
-        <Card className="mt-4 lg:mt-6 shadow-sm border border-gray-200">
-          <CardHeader>
-            <CardTitle data-testid="attendance-calendar-title">This Month's Attendance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-1 lg:gap-2 text-center text-xs lg:text-sm">
-              <div className="font-semibold text-gray-600 p-2">Sun</div>
-              <div className="font-semibold text-gray-600 p-2">Mon</div>
-              <div className="font-semibold text-gray-600 p-2">Tue</div>
-              <div className="font-semibold text-gray-600 p-2">Wed</div>
-              <div className="font-semibold text-gray-600 p-2">Thu</div>
-              <div className="font-semibold text-gray-600 p-2">Fri</div>
-              <div className="font-semibold text-gray-600 p-2">Sat</div>
-              
-              {/* Mock calendar days */}
-              {Array.from({ length: 35 }, (_, i) => {
-                const day = i - 5; // Start from previous month's end
-                const isCurrentMonth = day > 0 && day <= 31;
-                const hasClass = isCurrentMonth && Math.random() > 0.7;
-                const isPresent = hasClass && Math.random() > 0.15;
-                
-                return (
-                  <div
-                    key={i}
-                    className={`p-2 rounded ${
-                      !isCurrentMonth 
-                        ? "text-gray-300" 
-                        : hasClass 
-                          ? isPresent 
-                            ? "bg-secondary/20 text-secondary border border-secondary" 
-                            : "bg-destructive/20 text-destructive border border-destructive"
-                          : "text-gray-600"
-                    }`}
-                    data-testid={`calendar-day-${i}`}
-                  >
-                    {day > 0 ? day : ""}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-center space-x-6 mt-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-secondary/20 border border-secondary rounded"></div>
-                <span>Present</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-destructive/20 border border-destructive rounded"></div>
-                <span>Absent</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                <span>No Class</span>
-              </div>
-            </div>
+            ) : (
+              <p className="text-gray-500 text-center py-6">
+                No classes enrolled
+              </p>
+            )}
           </CardContent>
         </Card>
       </main>

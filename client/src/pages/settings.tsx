@@ -1,4 +1,6 @@
-import { useState } from "react";
+"use client";
+
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -23,21 +25,37 @@ import {
   EyeOff
 } from "lucide-react";
 
+type UserType = {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  email?: string | null;
+  isActive: boolean;
+};
+
 export default function Settings() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState<{ name: string; email?: string }>({ name: "", email: "" });
+
+  // Password form state
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: ""
   });
+
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     attendanceAlerts: true,
     weeklyReports: false,
     systemUpdates: true
   });
+
   const [systemSettings, setSystemSettings] = useState({
     captureInterval: "2",
     totalImages: "20",
@@ -45,11 +63,40 @@ export default function Settings() {
     autoSave: true,
     darkMode: false
   });
+
   const { toast } = useToast();
 
-  const { data: currentUser } = useQuery({
+  // Fetch user data
+  const { data: currentUser } = useQuery<UserType>({
     queryKey: ["/api/auth/me"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/auth/me");
+      return res.json();
+    },
   });
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedNotifications = localStorage.getItem("notificationSettings");
+    if (savedNotifications) {
+      setNotificationSettings(JSON.parse(savedNotifications));
+    }
+
+    const savedSystem = localStorage.getItem("systemSettings");
+    if (savedSystem) {
+      setSystemSettings(JSON.parse(savedSystem));
+    }
+  }, []);
+
+  // Sync profile form once user loads
+  useEffect(() => {
+    if (currentUser) {
+      setProfileForm({
+        name: currentUser.name || "",
+        email: currentUser.email || ""
+      });
+    }
+  }, [currentUser]);
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: typeof passwordForm) => {
@@ -58,109 +105,86 @@ export default function Settings() {
     },
     onSuccess: () => {
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      toast({
-        title: "Password Updated",
-        description: "Your password has been changed successfully",
-      });
+      toast({ title: "Password Updated", description: "Your password has been changed successfully" });
     },
-    onError: () => {
-      toast({
-        title: "Password Update Failed",
-        description: "Current password is incorrect",
-        variant: "destructive",
+    onError: (error: any) => {
+      toast({ 
+        title: "Password Update Failed", 
+        description: error.message || "Current password is incorrect", 
+        variant: "destructive" 
       });
     },
   });
 
-  const updateProfileMutation = useMutation({
-    mutationFn: async (data: { name: string; email?: string }) => {
-      const response = await apiRequest("PUT", "/api/auth/profile", data);
-      return await response.json();
+  const updateProfileMutation = useMutation<unknown, Error, { name: string; email?: string }>({
+    mutationFn: async (profile) => {
+      const res = await apiRequest("PUT", "/api/profile", profile);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: "Profile Updated",
-        description: "Your profile has been updated successfully",
+        description: "Your profile has been updated successfully"
       });
     },
     onError: () => {
       toast({
         title: "Update Failed",
         description: "Failed to update profile",
-        variant: "destructive",
+        variant: "destructive"
       });
     },
   });
 
   const handlePasswordChange = () => {
     if (!passwordForm.currentPassword || !passwordForm.newPassword) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all password fields",
-        variant: "destructive",
+      return toast({ 
+        title: "Missing Information", 
+        description: "Please fill in all password fields", 
+        variant: "destructive" 
       });
-      return;
     }
-
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "New password and confirmation don't match",
-        variant: "destructive",
+      return toast({ 
+        title: "Password Mismatch", 
+        description: "New password and confirmation don't match", 
+        variant: "destructive" 
       });
-      return;
     }
-
     if (passwordForm.newPassword.length < 6) {
-      toast({
-        title: "Weak Password",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
+      return toast({ 
+        title: "Weak Password", 
+        description: "Password must be at least 6 characters long", 
+        variant: "destructive" 
       });
-      return;
     }
-
     updatePasswordMutation.mutate(passwordForm);
   };
 
   const saveNotificationSettings = () => {
-    // Save notification settings
     localStorage.setItem("notificationSettings", JSON.stringify(notificationSettings));
-    toast({
-      title: "Settings Saved",
-      description: "Notification preferences have been updated",
-    });
+    toast({ title: "Settings Saved", description: "Notification preferences have been updated" });
   };
 
   const saveSystemSettings = () => {
-    // Save system settings
     localStorage.setItem("systemSettings", JSON.stringify(systemSettings));
-    toast({
-      title: "Settings Saved",
-      description: "System preferences have been updated",
-    });
+    toast({ title: "Settings Saved", description: "System preferences have been updated" });
   };
 
   return (
     <div className="flex h-screen">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)}
-      />
-      <div className="flex-1 overflow-hidden">
-        <Header 
-          title="Settings" 
-          subtitle="Manage your account and system preferences"
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col min-h-0">
+        <Header title="Settings" subtitle="Manage your account and system preferences" onMenuClick={() => setIsSidebarOpen(true)} />
         
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-4xl mx-auto space-y-4 lg:space-y-6">
+
             {/* Profile Settings */}
-            <Card className="shadow-sm border border-gray-200">
+            <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2" data-testid="profile-settings-title">
+                <CardTitle className="flex items-center space-x-2">
                   <User className="h-5 w-5" />
                   <span>Profile Settings</span>
                 </CardTitle>
@@ -171,51 +195,31 @@ export default function Settings() {
                     <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
-                      defaultValue={currentUser?.name || ""}
-                      placeholder="Enter your full name"
-                      data-testid="input-name"
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={currentUser?.username || ""}
-                      disabled
-                      className="bg-gray-50"
-                      data-testid="input-username"
-                    />
+                    <Label>Username</Label>
+                    <Input value={currentUser?.username || ""} disabled className="bg-gray-50" />
                   </div>
                   <div>
-                    <Label htmlFor="role">Role</Label>
-                    <Input
-                      id="role"
-                      value={currentUser?.role || ""}
-                      disabled
-                      className="bg-gray-50"
-                      data-testid="input-role"
-                    />
+                    <Label>Role</Label>
+                    <Input value={currentUser?.role || ""} disabled className="bg-gray-50" />
                   </div>
                   <div>
                     <Label htmlFor="email">Email (Optional)</Label>
                     <Input
                       id="email"
                       type="email"
-                      placeholder="Enter your email"
-                      data-testid="input-email"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     />
                   </div>
                 </div>
                 <Button
-                  onClick={() => {
-                    const name = (document.getElementById("name") as HTMLInputElement)?.value;
-                    const email = (document.getElementById("email") as HTMLInputElement)?.value;
-                    if (name) {
-                      updateProfileMutation.mutate({ name, email });
-                    }
-                  }}
+                  onClick={() => updateProfileMutation.mutate(profileForm)}
                   disabled={updateProfileMutation.isPending}
-                  data-testid="button-save-profile"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
@@ -479,7 +483,7 @@ export default function Settings() {
                   <Button variant="outline" data-testid="button-clear-old-sessions">
                     Clear Old Sessions
                   </Button>
-                  <Button variant="outline" className="text-destructive hover:text-destructive" data-testid="button-reset-system">
+                  <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400" data-testid="button-reset-system">
                     Reset System
                   </Button>
                 </div>
@@ -490,6 +494,7 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            
           </div>
         </main>
       </div>

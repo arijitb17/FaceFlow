@@ -24,9 +24,14 @@ export default function Students() {
   });
   const { toast } = useToast();
 
-  const { data: students, isLoading } = useQuery({
-    queryKey: ["/api/students"],
-  });
+const { data: students, isLoading } = useQuery<Student[]>({
+  queryKey: ["/api/students"],
+  queryFn: async () => {
+    const res = await apiRequest("GET", "/api/students");
+    return (await res.json()) as Student[];
+  },
+});
+
 
   const addStudentMutation = useMutation({
     mutationFn: async (student: typeof newStudent) => {
@@ -120,7 +125,7 @@ export default function Students() {
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)}
       />
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0">
         <Header 
           title="Students" 
           subtitle="Manage student profiles and training data"
@@ -252,8 +257,9 @@ export default function Students() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Enrolled:</span>
                       <span data-testid={`student-enrolled-${index}`}>
-                        {new Date(student.createdAt).toLocaleDateString()}
+                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "N/A"}
                       </span>
+
                     </div>
                   </div>
                   

@@ -18,14 +18,23 @@ export default function Training() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
-  const { data: students, isLoading: studentsLoading } = useQuery({
+  // Type the query explicitly
+  const { data: students, isLoading } = useQuery<Student[]>({
     queryKey: ["/api/students"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/students");
+      return (await res.json()) as Student[];
+    },
   });
 
-  const trainModelMutation = useMutation({
-    mutationFn: async (studentPhotos: { [studentId: string]: string[] }) => {
-      const response = await apiRequest("POST", "/api/face-recognition/train", { studentPhotos });
-      return await response.json();
+  const trainModelMutation = useMutation<
+    any,
+    unknown,
+    { [studentId: string]: string[] }
+  >({
+    mutationFn: async (studentPhotos) => {
+      const res = await apiRequest("POST", "/api/face-recognition/train", { studentPhotos });
+      return await res.json();
     },
     onSuccess: () => {
       setIsTraining(false);
@@ -59,10 +68,9 @@ export default function Training() {
 
     setIsTraining(true);
     setTrainingProgress(0);
-    
-    // Simulate progress
+
     const interval = setInterval(() => {
-      setTrainingProgress(prev => {
+      setTrainingProgress((prev) => {
         if (prev >= 90) {
           clearInterval(interval);
           return 90;
@@ -71,20 +79,17 @@ export default function Training() {
       });
     }, 500);
 
-    // Prepare student photos data (simulated)
     const studentPhotos: { [studentId: string]: string[] } = {};
-    selectedStudents.forEach(studentId => {
-      studentPhotos[studentId] = []; // Empty for now - would contain base64 images
-    });
-
+    selectedStudents.forEach((id) => (studentPhotos[id] = []));
     trainModelMutation.mutate(studentPhotos);
   };
 
   const handleSelectAll = () => {
-    if (selectedStudents.size === students?.length) {
+    if (!students) return;
+    if (selectedStudents.size === students.length) {
       setSelectedStudents(new Set());
     } else {
-      setSelectedStudents(new Set(students?.map((s: Student) => s.id) || []));
+      setSelectedStudents(new Set(students.map((s) => s.id)));
     }
   };
 
@@ -98,22 +103,15 @@ export default function Training() {
     setSelectedStudents(newSelected);
   };
 
-  const trainedStudents = students?.filter((s: Student) => s.isTrainingComplete) || [];
-  const pendingStudents = students?.filter((s: Student) => !s.isTrainingComplete) || [];
+  const trainedStudents = students?.filter((s) => s.isTrainingComplete) || [];
+  const pendingStudents = students?.filter((s) => !s.isTrainingComplete) || [];
 
-  if (studentsLoading) {
+  if (isLoading) {
     return (
       <div className="flex h-screen">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          onClose={() => setIsSidebarOpen(false)}
-        />
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex-1">
-          <Header 
-            title="Training" 
-            subtitle="Loading..." 
-            onMenuClick={() => setIsSidebarOpen(true)}
-          />
+          <Header title="Training" subtitle="Loading..." onMenuClick={() => setIsSidebarOpen(true)} />
           <div className="p-4 lg:p-6">
             <div className="animate-pulse space-y-4">
               {[...Array(3)].map((_, i) => (
@@ -128,22 +126,19 @@ export default function Training() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)}
-      />
-      <div className="flex-1 overflow-hidden">
-        <Header 
-          title="Training" 
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col min-h-0">
+        <Header
+          title="Training"
           subtitle="Manage face recognition model training"
           onMenuClick={() => setIsSidebarOpen(true)}
         />
-        
+
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Training Status Card */}
           <Card className="mb-6 shadow-sm border border-gray-200">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2" data-testid="training-status-title">
+              <CardTitle className="flex items-center space-x-2">
                 <Brain className="h-5 w-5 text-primary" />
                 <span>Training Status</span>
               </CardTitle>
@@ -151,21 +146,15 @@ export default function Training() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-secondary" data-testid="trained-count">
-                    {trainedStudents.length}
-                  </div>
+                  <div className="text-3xl font-bold text-secondary">{trainedStudents.length}</div>
                   <div className="text-sm text-gray-600">Students Trained</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-accent" data-testid="pending-count">
-                    {pendingStudents.length}
-                  </div>
+                  <div className="text-3xl font-bold text-accent">{pendingStudents.length}</div>
                   <div className="text-sm text-gray-600">Pending Training</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary" data-testid="model-accuracy">
-                    96.2%
-                  </div>
+                  <div className="text-3xl font-bold text-primary">96.2%</div>
                   <div className="text-sm text-gray-600">Model Accuracy</div>
                 </div>
               </div>
@@ -174,12 +163,10 @@ export default function Training() {
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">Training Progress</span>
-                    <span className="text-sm text-gray-500" data-testid="training-progress-text">
-                      {trainingProgress}%
-                    </span>
+                    <span className="text-sm text-gray-500">{trainingProgress}%</span>
                   </div>
-                  <Progress value={trainingProgress} className="w-full" data-testid="training-progress-bar" />
-                  <p className="text-sm text-gray-600 mt-2" data-testid="training-status-message">
+                  <Progress value={trainingProgress} className="w-full" />
+                  <p className="text-sm text-gray-600 mt-2">
                     Training face recognition model... This may take a few minutes.
                   </p>
                 </div>
@@ -190,20 +177,15 @@ export default function Training() {
           {/* Training Controls */}
           <Card className="mb-6 shadow-sm border border-gray-200">
             <CardHeader>
-              <CardTitle data-testid="training-controls-title">Training Controls</CardTitle>
+              <CardTitle>Training Controls</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <Button
-                    variant="outline"
-                    onClick={handleSelectAll}
-                    disabled={isTraining}
-                    data-testid="button-select-all"
-                  >
+                  <Button variant="outline" onClick={handleSelectAll} disabled={isTraining}>
                     {selectedStudents.size === students?.length ? "Deselect All" : "Select All"}
                   </Button>
-                  <span className="text-sm text-gray-600" data-testid="selected-count">
+                  <span className="text-sm text-gray-600">
                     {selectedStudents.size} of {students?.length || 0} students selected
                   </span>
                 </div>
@@ -211,7 +193,6 @@ export default function Training() {
                   onClick={handleStartTraining}
                   disabled={isTraining || selectedStudents.size === 0}
                   className="bg-primary text-white hover:bg-primary/90"
-                  data-testid="button-start-training"
                 >
                   <Play className="mr-2 h-4 w-4" />
                   {isTraining ? "Training..." : "Start Training"}
@@ -220,23 +201,22 @@ export default function Training() {
             </CardContent>
           </Card>
 
-          {/* Students List */}
+          {/* Students Lists */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Pending Training */}
             <Card className="shadow-sm border border-gray-200">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2" data-testid="pending-students-title">
+                <CardTitle className="flex items-center space-x-2">
                   <AlertCircle className="h-5 w-5 text-accent" />
                   <span>Pending Training ({pendingStudents.length})</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {pendingStudents.map((student: Student, index: number) => (
+                  {pendingStudents.map((student, index) => (
                     <div
                       key={student.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      data-testid={`pending-student-${index}`}
                     >
                       <div className="flex items-center space-x-3">
                         <input
@@ -245,35 +225,26 @@ export default function Training() {
                           onChange={() => handleToggleStudent(student.id)}
                           disabled={isTraining}
                           className="rounded border-gray-300"
-                          data-testid={`checkbox-student-${index}`}
                         />
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                           <User className="text-gray-600 h-5 w-5" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900" data-testid={`pending-student-name-${index}`}>
-                            {student.name}
-                          </p>
-                          <p className="text-sm text-gray-600" data-testid={`pending-student-id-${index}`}>
-                            ID: {student.studentId}
-                          </p>
+                          <p className="font-medium text-gray-900">{student.name}</p>
+                          <p className="text-sm text-gray-600">ID: {student.studentId}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="flex items-center space-x-1 text-sm text-gray-600">
                           <Camera className="h-4 w-4" />
-                          <span data-testid={`pending-student-photos-${index}`}>
-                            {student.photos?.length || 0} photos
-                          </span>
+                          <span>{student.photos?.length || 0} photos</span>
                         </div>
-                        <Badge variant="secondary" data-testid={`pending-student-status-${index}`}>
-                          Pending
-                        </Badge>
+                        <Badge variant="secondary">Pending</Badge>
                       </div>
                     </div>
                   ))}
                   {pendingStudents.length === 0 && (
-                    <div className="text-center py-8 text-gray-500" data-testid="no-pending-students">
+                    <div className="text-center py-8 text-gray-500">
                       <AlertCircle className="mx-auto h-8 w-8 text-gray-400 mb-2" />
                       <p>No students pending training</p>
                     </div>
@@ -285,47 +256,38 @@ export default function Training() {
             {/* Trained Students */}
             <Card className="shadow-sm border border-gray-200">
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2" data-testid="trained-students-title">
+                <CardTitle className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5 text-secondary" />
                   <span>Trained Students ({trainedStudents.length})</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {trainedStudents.map((student: Student, index: number) => (
+                  {trainedStudents.map((student, index) => (
                     <div
                       key={student.id}
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                      data-testid={`trained-student-${index}`}
                     >
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                           <User className="text-gray-600 h-5 w-5" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900" data-testid={`trained-student-name-${index}`}>
-                            {student.name}
-                          </p>
-                          <p className="text-sm text-gray-600" data-testid={`trained-student-id-${index}`}>
-                            ID: {student.studentId}
-                          </p>
+                          <p className="font-medium text-gray-900">{student.name}</p>
+                          <p className="text-sm text-gray-600">ID: {student.studentId}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="flex items-center space-x-1 text-sm text-gray-600">
                           <Camera className="h-4 w-4" />
-                          <span data-testid={`trained-student-photos-${index}`}>
-                            {student.photos?.length || 0} photos
-                          </span>
+                          <span>{student.photos?.length || 0} photos</span>
                         </div>
-                        <Badge className="bg-secondary text-white" data-testid={`trained-student-status-${index}`}>
-                          Trained
-                        </Badge>
+                        <Badge className="bg-secondary text-white">Trained</Badge>
                       </div>
                     </div>
                   ))}
                   {trainedStudents.length === 0 && (
-                    <div className="text-center py-8 text-gray-500" data-testid="no-trained-students">
+                    <div className="text-center py-8 text-gray-500">
                       <CheckCircle className="mx-auto h-8 w-8 text-gray-400 mb-2" />
                       <p>No students have been trained yet</p>
                     </div>
@@ -334,35 +296,6 @@ export default function Training() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Training Tips */}
-          <Card className="mt-6 shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle data-testid="training-tips-title">Training Tips</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600">
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Photo Requirements:</h4>
-                  <ul className="space-y-1">
-                    <li>• Minimum 10 photos per student</li>
-                    <li>• Clear, well-lit face images</li>
-                    <li>• Multiple angles and expressions</li>
-                    <li>• No sunglasses or face coverings</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-2">Best Practices:</h4>
-                  <ul className="space-y-1">
-                    <li>• Retrain model weekly for best accuracy</li>
-                    <li>• Add new photos if recognition fails</li>
-                    <li>• Training takes 2-5 minutes per student</li>
-                    <li>• Backup training data regularly</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </main>
       </div>
     </div>
