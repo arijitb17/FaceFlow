@@ -32,7 +32,7 @@ export interface IStorage {
   getTeacher(userId: string): Promise<Teacher | undefined>;
 
   // Student methods
-  getStudents(): Promise<Student[]>;
+  getStudents(): Promise<(Student & { user: User })[]>;
   getStudent(id: string): Promise<Student | undefined>;
   getStudentByStudentId(studentId: string): Promise<Student | undefined>;
   createStudent(student: InsertStudent): Promise<Student>;

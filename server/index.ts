@@ -5,8 +5,10 @@ import { setupVite, serveStatic, log } from "./vite";
 import http from "http";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Allow large payloads (e.g., 50 MB)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+
 
 // Request logger for API routes
 app.use((req, res, next) => {

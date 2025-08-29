@@ -319,7 +319,7 @@ export default function Login() {
               <p>Demo Credentials:</p>
               <p>Admin: username "admin", password "admin123"</p>
               <p>Teacher: username "teacher", password "teacher123"</p>
-              <p>Student: email "student@smartattend.edu", rollNo "R-0001", password "student123"</p>
+              <p>Student: email "student@demo.com", rollNo "R001", password "student123"</p>
             </div>
           </CardContent>
         </Card>

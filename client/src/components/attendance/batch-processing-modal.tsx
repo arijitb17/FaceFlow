@@ -1,158 +1,240 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// components/attendance/batch-processing-modal.tsx
+"use client";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Save, Download, Edit, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  X, 
+  CheckCircle, 
+  Users, 
+  Camera, 
+  Brain,
+  Download,
+  Eye
+} from "lucide-react";
+
+interface ProcessingResults {
+  totalImages: number;
+  totalFacesDetected: number;
+  recognizedStudents: string[];
+  averageConfidence: number;
+  sessionId: string;
+}
 
 interface BatchProcessingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  results?: {
-    totalImages: number;
-    totalFacesDetected: number;
-    recognizedStudents: string[];
-    averageConfidence: number;
-  };
+  results: ProcessingResults | null;
 }
 
-export default function BatchProcessingModal({
-  isOpen,
-  onClose,
-  results
+export default function BatchProcessingModal({ 
+  isOpen, 
+  onClose, 
+  results 
 }: BatchProcessingModalProps) {
-  if (!results) return null;
+  const [showDetails, setShowDetails] = useState(false);
 
-  const handleSaveAttendance = () => {
-    // TODO: Implement save attendance logic
-    console.log("Saving attendance...");
-    onClose();
-  };
+  useEffect(() => {
+    if (isOpen) {
+      setShowDetails(false);
+    }
+  }, [isOpen]);
 
-  const handleExportReport = () => {
-    // TODO: Implement export logic
-    console.log("Exporting report...");
-  };
+  if (!isOpen || !results) return null;
 
-  const handleManualCorrection = () => {
-    // TODO: Implement manual correction logic
-    console.log("Opening manual correction...");
-  };
+  const recognitionRate = results.totalFacesDetected > 0 
+    ? (results.recognizedStudents.length / results.totalFacesDetected * 100).toFixed(1)
+    : '0';
+
+  const confidencePercentage = (results.averageConfidence * 100).toFixed(1);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden" data-testid="batch-processing-modal">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-semibold text-gray-900">
-              Batch Processing Results
-            </DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              data-testid="button-close-modal"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-6 w-6 text-green-500" />
+            <h2 className="text-xl font-semibold">Processing Complete</h2>
           </div>
-        </DialogHeader>
-        
-        <div className="overflow-y-auto max-h-[70vh]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Processing Summary */}
-            <Card className="bg-gray-50">
-              <CardContent className="p-4">
-                <h4 className="font-semibold text-gray-900 mb-3" data-testid="summary-title">
-                  Processing Summary
-                </h4>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Images Captured:</span>
-                    <span className="font-medium" data-testid="summary-images-captured">
-                      {results.totalImages}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Faces Detected:</span>
-                    <span className="font-medium" data-testid="summary-faces-detected">
-                      {results.totalFacesDetected}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Students Recognized:</span>
-                    <span className="font-medium" data-testid="summary-students-recognized">
-                      {results.recognizedStudents.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Average Confidence:</span>
-                    <span className="font-medium" data-testid="summary-avg-confidence">
-                      {(results.averageConfidence * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
 
-            {/* Student List */}
-            <Card className="bg-gray-50">
-              <CardContent className="p-4">
-                <h4 className="font-semibold text-gray-900 mb-3" data-testid="students-title">
-                  Recognized Students
-                </h4>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {results.recognizedStudents.length > 0 ? (
-                    results.recognizedStudents.map((student, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between py-2 border-b border-gray-200 last:border-b-0"
-                        data-testid={`recognized-student-${index}`}
-                      >
-                        <span className="text-gray-900">{student}</span>
-                        <span className="text-sm bg-secondary/10 text-secondary px-2 py-1 rounded">
-                          Present
-                        </span>
-                      </div>
-                    ))
+        {/* Content */}
+        <div className="p-6 space-y-6 overflow-y-auto">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <Camera className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-blue-600">{results.totalImages}</p>
+              <p className="text-sm text-gray-600">Images Processed</p>
+            </div>
+            
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <Eye className="h-8 w-8 text-green-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-green-600">{results.totalFacesDetected}</p>
+              <p className="text-sm text-gray-600">Faces Detected</p>
+            </div>
+            
+            <div className="text-center p-4 bg-purple-50 rounded-lg">
+              <Users className="h-8 w-8 text-purple-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-purple-600">{results.recognizedStudents.length}</p>
+              <p className="text-sm text-gray-600">Students Present</p>
+            </div>
+            
+            <div className="text-center p-4 bg-orange-50 rounded-lg">
+              <Brain className="h-8 w-8 text-orange-500 mx-auto mb-2" />
+              <p className="text-2xl font-bold text-orange-600">{confidencePercentage}%</p>
+              <p className="text-sm text-gray-600">Avg Confidence</p>
+            </div>
+          </div>
+
+          {/* Recognition Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Recognition Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Recognition Rate:</span>
+                  <Badge variant="default" className="bg-green-500">
+                    {recognitionRate}%
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Average Confidence:</span>
+                  <Badge variant={Number(confidencePercentage) > 70 ? "default" : "destructive"}>
+                    {confidencePercentage}%
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Session ID:</span>
+                  <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                    {results.sessionId.substring(0, 8)}...
+                  </code>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recognized Students */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center justify-between">
+                <span>Recognized Students ({results.recognizedStudents.length})</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDetails(!showDetails)}
+                >
+                  {showDetails ? 'Hide' : 'Show'} Details
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {results.recognizedStudents.length > 0 ? (
+                <div className="space-y-2">
+                  {showDetails ? (
+                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                      {results.recognizedStudents.map((studentId, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded border">
+                          <span className="font-medium">{studentId}</span>
+                          <Badge variant="default" className="bg-green-500">Present</Badge>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <div className="text-center text-gray-500 py-4" data-testid="no-students-message">
-                      No students recognized
+                    <div className="flex flex-wrap gap-1">
+                      {results.recognizedStudents.slice(0, 10).map((studentId, index) => (
+                        <Badge key={index} variant="outline" className="text-xs">
+                          {studentId}
+                        </Badge>
+                      ))}
+                      {results.recognizedStudents.length > 10 && (
+                        <Badge variant="secondary" className="text-xs">
+                          +{results.recognizedStudents.length - 10} more
+                        </Badge>
+                      )}
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  No students recognized in this session
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Action Buttons */}
-          <div className="flex space-x-4">
-            <Button
-              onClick={handleSaveAttendance}
-              className="flex-1 bg-primary text-white hover:bg-primary/90"
-              data-testid="button-save-attendance"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save Attendance
+          {/* Quality Assessment */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Quality Assessment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  {Number(confidencePercentage) > 80 ? (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  ) : Number(confidencePercentage) > 60 ? (
+                    <Eye className="h-5 w-5 text-yellow-500" />
+                  ) : (
+                    <X className="h-5 w-5 text-red-500" />
+                  )}
+                  <span className="text-sm">
+                    {Number(confidencePercentage) > 80 
+                      ? "Excellent recognition quality"
+                      : Number(confidencePercentage) > 60
+                        ? "Good recognition quality"
+                        : "Fair recognition quality - consider retraining"
+                    }
+                  </span>
+                </div>
+
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p>• Higher confidence indicates better face matching</p>
+                  <p>• Low confidence may indicate poor lighting or image quality</p>
+                  <p>• Consider retraining if confidence is consistently below 60%</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <div className="flex justify-between space-x-3">
+            <Button variant="outline" onClick={onClose}>
+              Close
             </Button>
-            <Button
-              onClick={handleExportReport}
-              className="flex-1 bg-secondary text-white hover:bg-secondary/90"
-              data-testid="button-export-report"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export Report
-            </Button>
-            <Button
-              onClick={handleManualCorrection}
-              variant="outline"
-              className="px-6"
-              data-testid="button-manual-correction"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Manual Correction
-            </Button>
+            <div className="space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Download results as JSON
+                  const dataStr = JSON.stringify(results, null, 2);
+                  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                  const url = URL.createObjectURL(dataBlob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `attendance-${results.sessionId.substring(0, 8)}.json`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export Results
+              </Button>
+              <Button onClick={onClose}>
+                Continue
+              </Button>
+            </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }

@@ -1,198 +1,321 @@
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs/promises';
-import { randomUUID } from 'crypto';
-
-export interface FaceRecognitionResult {
-  studentId?: string;
-  studentName?: string;
-  confidence: number;
-  bbox: number[];
-  imageIndex: number;
-}
-
-export interface BatchProcessingResult {
-  totalImages: number;
-  totalFacesDetected: number;
-  recognizedStudents: string[];
-  results: FaceRecognitionResult[];
-  averageConfidence: number;
-}
+// server/services/faceRecognition.ts
+import { spawn } from "child_process";
+import fs from "fs";
+import path from "path";
+import { storage } from "../storage";
 
 export class FaceRecognitionService {
-  private workingDir: string;
+  private readonly datasetPath = path.join(process.cwd(), "dataset");
+  private readonly testImagesPath = path.join(process.cwd(), "test-images");
+  private readonly outputPath = path.join(process.cwd(), "output");
+  private readonly scriptsPath = path.join(process.cwd(), "scripts");
+  private isTraining = false;
 
   constructor() {
-    this.workingDir = path.join(process.cwd(), 'temp_recognition');
+    this.ensureDirectories();
   }
 
-  async ensureWorkingDirectory(): Promise<void> {
-    try {
-      await fs.access(this.workingDir);
-    } catch {
-      await fs.mkdir(this.workingDir, { recursive: true });
-    }
+  private ensureDirectories() {
+    [this.datasetPath, this.testImagesPath, this.outputPath, this.scriptsPath].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
   }
 
-  async trainStudentEmbeddings(studentPhotos: { [studentId: string]: string[] }): Promise<boolean> {
+  /**
+   * Save student photos to dataset folder structure
+   */
+  async saveStudentPhotosToDataset(studentId: string, name: string, base64Photos: string[]): Promise<boolean> {
     try {
-      await this.ensureWorkingDirectory();
+      // Create student folder using their name (sanitized)
+      const sanitizedName = name.replace(/[^a-zA-Z0-9\-_]/g, '_').toLowerCase();
+      const studentFolder = path.join(this.datasetPath, sanitizedName);
       
-      // Create dataset structure
-      const datasetPath = path.join(this.workingDir, 'dataset');
-      await fs.mkdir(datasetPath, { recursive: true });
-
-      // Save student photos to appropriate folders
-      for (const [studentId, photos] of Object.entries(studentPhotos)) {
-        const studentDir = path.join(datasetPath, studentId);
-        await fs.mkdir(studentDir, { recursive: true });
-        
-        for (let i = 0; i < photos.length; i++) {
-          const photoPath = path.join(studentDir, `photo_${i}.jpg`);
-          // Here you would save the base64 image data to file
-          // await fs.writeFile(photoPath, Buffer.from(photos[i], 'base64'));
-        }
+      if (!fs.existsSync(studentFolder)) {
+        fs.mkdirSync(studentFolder, { recursive: true });
       }
 
-      // Run training script
-      return new Promise((resolve, reject) => {
-        const pythonProcess = spawn('python', [
-          path.join(process.cwd(), 'attached_assets', 'train_1755929175701.py')
-        ], {
-          cwd: this.workingDir,
-          stdio: 'pipe'
-        });
-
-        pythonProcess.on('close', (code) => {
-          if (code === 0) {
-            resolve(true);
-          } else {
-            reject(new Error(`Training failed with code ${code}`));
-          }
-        });
-
-        pythonProcess.on('error', (error) => {
-          reject(error);
-        });
+      // Clear existing photos
+      const existingFiles = fs.readdirSync(studentFolder);
+      existingFiles.forEach(file => {
+        fs.unlinkSync(path.join(studentFolder, file));
       });
+
+      // Save new photos
+      for (let i = 0; i < base64Photos.length; i++) {
+        const base64Data = base64Photos[i].replace(/^data:image\/[a-z]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filename = `${sanitizedName}_${i + 1}.jpg`;
+        const filepath = path.join(studentFolder, filename);
+        fs.writeFileSync(filepath, buffer);
+      }
+
+      console.log(`Saved ${base64Photos.length} photos for ${name} in dataset/${sanitizedName}`);
+      return true;
     } catch (error) {
-      console.error('Training error:', error);
+      console.error(`Error saving photos for ${name}:`, error);
       return false;
     }
   }
 
-  async processBatchImages(imageDataArray: string[]): Promise<BatchProcessingResult> {
+  /**
+   * Train the face recognition model with all students in dataset
+   */
+  async trainModel(): Promise<boolean> {
+    if (this.isTraining) {
+      console.log("Training already in progress");
+      return false;
+    }
+
     try {
-      await this.ensureWorkingDirectory();
-      
-      // Create test-images directory
-      const testImagesPath = path.join(this.workingDir, 'test-images');
-      await fs.mkdir(testImagesPath, { recursive: true });
+      this.isTraining = true;
+      console.log("Starting face recognition model training...");
 
-      // Save images to test directory
-      for (let i = 0; i < imageDataArray.length; i++) {
-        const imagePath = path.join(testImagesPath, `capture_${i}.jpg`);
-        // Convert base64 to image file
-        const base64Data = imageDataArray[i].replace(/^data:image\/[a-z]+;base64,/, '');
-        await fs.writeFile(imagePath, Buffer.from(base64Data, 'base64'));
-      }
-
-      // Run recognition script
-      return new Promise((resolve, reject) => {
-        const pythonProcess = spawn('python', [
-          path.join(process.cwd(), 'attached_assets', 'recognize_1755929175698.py')
-        ], {
-          cwd: this.workingDir,
-          stdio: 'pipe'
+      return new Promise((resolve) => {
+        const trainScript = path.join(this.scriptsPath, "train.py");
+        const pythonProcess = spawn("python", [trainScript], {
+          cwd: process.cwd(),
         });
 
-        let output = '';
-        let errorOutput = '';
+        let output = "";
+        let errorOutput = "";
 
-        pythonProcess.stdout.on('data', (data) => {
+        pythonProcess.stdout.on("data", (data) => {
           output += data.toString();
+          console.log("Training output:", data.toString());
         });
 
-        pythonProcess.stderr.on('data', (data) => {
+        pythonProcess.stderr.on("data", (data) => {
           errorOutput += data.toString();
+          console.error("Training error:", data.toString());
         });
 
-        pythonProcess.on('close', (code) => {
+        pythonProcess.on("close", async (code) => {
+          this.isTraining = false;
+          
           if (code === 0) {
-            // Parse the output to extract recognition results
-            const results = this.parseRecognitionOutput(output);
-            resolve(results);
+            console.log("Training completed successfully");
+            
+            // Mark all students with photos as trained
+            try {
+              const students = await storage.getStudents();
+              const studentsWithPhotos = students.filter(s => s.photos && s.photos.length > 0);
+              
+              for (const student of studentsWithPhotos) {
+                await storage.updateStudent(student.id, { isTrainingComplete: true });
+              }
+              
+              console.log(`Marked ${studentsWithPhotos.length} students as trained`);
+            } catch (dbError) {
+              console.error("Error updating student training status:", dbError);
+            }
+            
+            resolve(true);
           } else {
-            reject(new Error(`Recognition failed: ${errorOutput}`));
+            console.error(`Training failed with code ${code}`);
+            console.error("Error output:", errorOutput);
+            resolve(false);
           }
         });
 
-        pythonProcess.on('error', (error) => {
-          reject(error);
+        pythonProcess.on("error", (error) => {
+          this.isTraining = false;
+          console.error("Failed to start training process:", error);
+          resolve(false);
         });
       });
     } catch (error) {
-      console.error('Batch processing error:', error);
-      throw error;
+      this.isTraining = false;
+      console.error("Training error:", error);
+      return false;
     }
   }
 
-  private parseRecognitionOutput(output: string): BatchProcessingResult {
-    // This is a simplified parser - in reality, you'd need to modify
-    // the Python script to output structured JSON data
-    const lines = output.split('\n');
-    const results: FaceRecognitionResult[] = [];
-    const recognizedStudents = new Set<string>();
-    let totalFacesDetected = 0;
-    let totalConfidence = 0;
-    let confidenceCount = 0;
-
-    for (const line of lines) {
-      if (line.includes('Faces Detected:')) {
-        const match = line.match(/Faces Detected: (\d+)/);
-        if (match) {
-          totalFacesDetected += parseInt(match[1]);
-        }
-      }
-
-      if (line.includes('Detected:') && line.includes('Similarity:')) {
-        const nameMatch = line.match(/Detected: ([^(]+)/);
-        const confidenceMatch = line.match(/Similarity: ([\d.]+)/);
-        
-        if (nameMatch && confidenceMatch) {
-          const studentName = nameMatch[1].trim();
-          const confidence = parseFloat(confidenceMatch[1]);
-          
-          if (studentName !== 'Unknown' && confidence > 0.4) {
-            recognizedStudents.add(studentName);
-            totalConfidence += confidence;
-            confidenceCount++;
-            
-            results.push({
-              studentName,
-              confidence,
-              bbox: [0, 0, 100, 100], // Placeholder - would be parsed from actual output
-              imageIndex: 0 // Would be parsed from filename
-            });
-          }
-        }
+  /**
+   * Process live capture frames and recognize faces
+   */
+async processLiveCapture(base64Images: string[], sessionId?: string): Promise<{
+  totalImages: number;
+  totalFacesDetected: number;
+  recognizedStudents: string[]; // labels from recognize.py (dataset folder names)
+  averageConfidence: number;
+  results: any[];               // per-face detections
+}> {
+  try {
+    // reset test-images
+    if (fs.existsSync(this.testImagesPath)) {
+      for (const f of fs.readdirSync(this.testImagesPath)) {
+        fs.unlinkSync(path.join(this.testImagesPath, f));
       }
     }
 
+    // save incoming frames
+    base64Images.forEach((b64, i) => {
+      const buf = Buffer.from(b64.replace(/^data:image\/[a-z]+;base64,/, ""), "base64");
+      fs.writeFileSync(path.join(this.testImagesPath, `frame_${i + 1}.jpg`), buf);
+    });
+
+    return await new Promise((resolve) => {
+      const recognizeScript = path.join(this.scriptsPath, "recognize.py");
+      const python = spawn("python", [recognizeScript], { cwd: process.cwd() });
+
+      let out = "";
+      let err = "";
+
+      python.stdout.on("data", (d) => (out += d.toString()));
+      python.stderr.on("data", (d) => {
+        err += d.toString();
+        console.error("[recognize.py]", d.toString());
+      });
+
+      const finalize = (payload: any) => {
+        try {
+          // store a copy to /output for auditing
+          const filename = `recognition-${sessionId || Date.now()}.json`;
+          fs.writeFileSync(path.join(this.outputPath, filename), JSON.stringify(payload, null, 2));
+        } catch (e) {
+          console.error("Failed to persist recognition JSON:", e);
+        }
+
+        resolve({
+          totalImages: payload.processedImages ?? base64Images.length,
+          totalFacesDetected: payload.totalFaces ?? 0,
+          recognizedStudents: payload.recognizedStudents ?? [],
+          averageConfidence: payload.averageConfidence ?? 0,
+          results: payload.detections ?? [],
+        });
+      };
+
+      python.on("close", (code) => {
+        if (code === 0) {
+          try {
+            const parsed = JSON.parse(out.trim());
+            finalize(parsed);
+          } catch (e) {
+            console.error("Parse error:", e);
+            finalize({});
+          }
+        } else {
+          console.error(`recognize.py exit code ${code}`, err);
+          finalize({});
+        }
+      });
+
+      python.on("error", (e) => {
+        console.error("Spawn error:", e);
+        finalize({});
+      });
+    });
+  } catch (e) {
+    console.error("processLiveCapture error:", e);
     return {
-      totalImages: 20, // Fixed for now
-      totalFacesDetected,
-      recognizedStudents: Array.from(recognizedStudents),
-      results,
-      averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0
+      totalImages: base64Images.length,
+      totalFacesDetected: 0,
+      recognizedStudents: [],
+      averageConfidence: 0,
+      results: [],
+    };
+  }
+}
+  /**
+   * Clear a student's dataset folder completely
+   */
+  async clearStudentDataset(studentId: string, name: string): Promise<boolean> {
+    try {
+      const sanitizedName = name.replace(/[^a-zA-Z0-9\-_]/g, "_").toLowerCase();
+      const studentFolder = path.join(this.datasetPath, sanitizedName);
+
+      if (fs.existsSync(studentFolder)) {
+        // remove all files first
+        for (const file of fs.readdirSync(studentFolder)) {
+          fs.unlinkSync(path.join(studentFolder, file));
+        }
+        // then remove the folder itself
+        fs.rmdirSync(studentFolder, { recursive: true });
+      }
+
+      console.log(`Cleared dataset folder for student: ${name} (${studentId})`);
+      return true;
+    } catch (error) {
+      console.error(`Error clearing dataset for ${name}:`, error);
+      return false;
+    }
+  }
+
+
+  /**
+   * Get training status
+   */
+  async getTrainingStatus() {
+    const students = await storage.getStudents();
+    const studentsWithPhotos = students.filter(s => s.photos && s.photos.length > 0);
+    const trainedStudents = students.filter(s => s.isTrainingComplete);
+
+    return {
+      isTraining: this.isTraining,
+      totalStudents: students.length,
+      studentsWithPhotos: studentsWithPhotos.length,
+      trainedStudents: trainedStudents.length,
+      needsTraining: studentsWithPhotos.length > trainedStudents.length,
+      progress: this.isTraining ? 50 : 100 // Simple progress indication
     };
   }
 
-  async cleanup(): Promise<void> {
+  /**
+   * Process batch images (alias for live capture)
+   */
+  async processBatchImages(images: string[]) {
+    return this.processLiveCapture(images);
+  }
+
+  /**
+   * Train specific students
+   */
+  async trainStudentEmbeddings(studentPhotos: { studentId: string; photos: string[] }[]): Promise<boolean> {
     try {
-      await fs.rm(this.workingDir, { recursive: true, force: true });
+      // Save student photos to dataset first
+      for (const { studentId, photos } of studentPhotos) {
+        const student = await storage.getStudent(studentId);
+        if (student) {
+          await this.saveStudentPhotosToDataset(studentId, student.name, photos);
+        }
+      }
+
+      // Run full model training
+      return await this.trainModel();
     } catch (error) {
-      console.error('Cleanup error:', error);
+      console.error("Error training student embeddings:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Retrain specific students
+   */
+  async retrainStudents(studentIds: string[]): Promise<boolean> {
+    try {
+      const studentPhotos = [];
+      
+      for (const studentId of studentIds) {
+        const student = await storage.getStudent(studentId);
+        if (student && student.photos && student.photos.length > 0) {
+          studentPhotos.push({
+            studentId: student.id,
+            photos: student.photos
+          });
+        }
+      }
+
+      if (studentPhotos.length === 0) {
+        console.log("No students with photos found for retraining");
+        return false;
+      }
+
+      return await this.trainStudentEmbeddings(studentPhotos);
+    } catch (error) {
+      console.error("Error retraining students:", error);
+      return false;
     }
   }
 }

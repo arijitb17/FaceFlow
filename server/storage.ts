@@ -313,9 +313,21 @@ async getUsersByRole(role: "admin" | "teacher" | "student"): Promise<UserWithPro
   }
 
   // ---------------- STUDENTS ----------------
-  async getStudents(): Promise<Student[]> {
-    return await db.select().from(students);
-  }
+async getStudents(): Promise<(Student & { user: User })[]> {
+  const rows = await db
+    .select({
+      student: students,
+      user: users,
+    })
+    .from(students)
+    .innerJoin(users, eq(students.userId, users.id));
+
+  return rows.map(r => ({
+    ...r.student,
+    user: r.user,
+  }));
+}
+
 
 async getStudent(idOrUserId: string): Promise<Student | undefined> {
   const result = await db
