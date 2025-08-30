@@ -3,12 +3,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import http from "http";
+import path from "path";
 
 const app = express();
 // Allow large payloads (e.g., 50 MB)
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
-
+app.use(
+  "/datasets",
+  express.static(path.join(process.cwd(), "dataset"))
+);
 
 // Request logger for API routes
 app.use((req, res, next) => {

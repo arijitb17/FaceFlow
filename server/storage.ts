@@ -27,6 +27,7 @@ import { neon } from "@neondatabase/serverless";
 import { eq, and,or } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import type { IStorage } from "./store";
+import { inArray } from "drizzle-orm";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
@@ -289,6 +290,28 @@ async getUsersByRole(role: "admin" | "teacher" | "student"): Promise<UserWithPro
   return result;
 }
 
+async getStudentsByTeacherViaClasses(teacherUserId: string): Promise<(Student & { user: User })[]> {
+  // Get classes of teacher
+  const teacherClasses = await db.select().from(classes).where(eq(classes.teacherId, teacherUserId));
+
+  if (teacherClasses.length === 0) return [];
+
+  const classIds = teacherClasses.map(c => c.id);
+
+  // Get students enrolled in those classes
+  const enrollments = await db
+    .select({ student: students, user: users })
+    .from(classEnrollments)
+    .innerJoin(students, eq(classEnrollments.studentId, students.id))
+    .innerJoin(users, eq(students.userId, users.id))
+    .where(inArray(classEnrollments.classId, classIds));
+
+  return enrollments.map(r => ({
+    ...r.student,
+    user: r.user,
+    isTrainingComplete: r.student.isTrainingComplete ?? false,
+  }));
+}
 
   // ---------------- TEACHERS ----------------
   async createTeacher(insertTeacher: InsertTeacher): Promise<Teacher> {
@@ -315,16 +338,14 @@ async getUsersByRole(role: "admin" | "teacher" | "student"): Promise<UserWithPro
   // ---------------- STUDENTS ----------------
 async getStudents(): Promise<(Student & { user: User })[]> {
   const rows = await db
-    .select({
-      student: students,
-      user: users,
-    })
+    .select({ student: students, user: users })
     .from(students)
     .innerJoin(users, eq(students.userId, users.id));
 
   return rows.map(r => ({
     ...r.student,
     user: r.user,
+    isTrainingComplete: r.student.isTrainingComplete ?? false, // Fix here
   }));
 }
 
@@ -390,6 +411,15 @@ async getStudent(idOrUserId: string): Promise<Student | undefined> {
       .limit(1);
     return result[0];
   }
+async markStudentsAsTrained(studentIds: string[]): Promise<void> {
+  if (!studentIds || studentIds.length === 0) return;
+
+  await db
+    .update(students)
+    .set({ isTrainingComplete: true })
+    .where(inArray(students.id, studentIds));
+}
+
 
   async createClass(classData: InsertClass & { teacherId?: string }): Promise<Class> {
     const [cls] = await db

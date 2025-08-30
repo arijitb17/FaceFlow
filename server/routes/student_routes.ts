@@ -274,4 +274,29 @@ app.get("/api/attendance/:studentId", authenticateToken, async (req: AuthRequest
       res.status(500).json({ message: "Failed to record manual attendance" });
     }
   });
+app.get("/api/students/teacher/:teacherId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { teacherId } = req.params;
+    const students = await storage.getStudentsByTeacherViaClasses(teacherId);
+
+    // Each student object already has student fields + user
+    res.json(
+      students.map(s => ({
+        id: s.id,
+        name: s.name,
+        studentId: s.studentId,
+        rollNo: s.rollNo,
+        email: s.email,
+        photos: s.photos || [],
+        isTrainingComplete: s.isTrainingComplete || false,
+        user: s.user,
+      }))
+    );
+  } catch (error) {
+    console.error("Get teacher's students error:", error);
+    res.status(500).json({ message: "Failed to fetch teacher's students" });
+  }
+});
+
+
 }

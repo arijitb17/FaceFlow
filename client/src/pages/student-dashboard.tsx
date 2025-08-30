@@ -108,6 +108,14 @@ export default function StudentDashboard() {
   const handleUpload = () => {
     if (selectedFiles.length) uploadPhotosMutation.mutate(selectedFiles);
   };
+// Group attendance records by class
+const attendanceByClass: Record<string, AttendanceRecord[]> = {};
+attendanceRecords.forEach(record => {
+  if (!attendanceByClass[record.className]) {
+    attendanceByClass[record.className] = [];
+  }
+  attendanceByClass[record.className].push(record);
+});
 
   // ---- Attendance stats
   const totalSessions = attendanceRecords.length;
@@ -185,42 +193,92 @@ export default function StudentDashboard() {
         </Card>
 
         {/* Recent Attendance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Attendance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentAttendance.length > 0 ? (
-              <div className="space-y-3">
-                {recentAttendance.map(r => (
-                  <div key={r.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
-                    <div className="flex items-center space-x-3">
-                      {r.isPresent ? (
-                        <CheckCircle className="text-green-500 h-5 w-5" />
-                      ) : (
-                        <XCircle className="text-red-500 h-5 w-5" />
-                      )}
-                      <div>
-                        <p className="font-medium">{r.className}</p>
-                        <p className="text-sm text-gray-600">{r.classCode}</p>
+<Card>
+  <CardHeader>
+    <CardTitle>Attendance Calendar</CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-6">
+    {(() => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth(); // 0-indexed
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 = Sunday
+
+      // Calendar days array with null for empty slots
+      const calendarDays: (number | null)[] = [
+        ...Array(firstDayOfWeek).fill(null),
+        ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+      ];
+
+      return (
+        <div className="grid grid-cols-7 gap-1 text-center text-xs lg:text-sm">
+          {/* Weekday headers */}
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+            <div key={d} className="font-semibold text-gray-600 p-1">{d}</div>
+          ))}
+
+          {/* Days of the month */}
+          {calendarDays.map((day, idx) => {
+            if (!day) return <div key={idx}></div>; // empty slot
+
+            // Find all attendance records for this day
+            const recordsForDay = attendanceRecords.filter(r => {
+              const date = new Date(r.date);
+              return date.getDate() === day &&
+                     date.getMonth() === month &&
+                     date.getFullYear() === year;
+            });
+
+            return (
+              <div
+                key={idx}
+                className="p-1 rounded border border-gray-200 min-h-[3rem] flex flex-col justify-start gap-1"
+              >
+                <div className="text-xs font-medium mb-1">{day}</div>
+                <div className="flex flex-wrap gap-0.5 max-h-12 overflow-y-auto">
+                  {recordsForDay.length > 0 ? (
+                    recordsForDay.map((r, i) => (
+                      <div
+                        key={i}
+                        className={`text-[10px] px-1 py-0.5 rounded ${
+                          r.isPresent ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
+                        }`}
+                        title={`${r.className}: ${r.isPresent ? "Present" : "Absent"}`}
+                      >
+                        {r.classCode || r.className}
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={r.isPresent ? "default" : "destructive"}>
-                        {r.isPresent ? "Present" : "Absent"}
-                      </Badge>
-                      <p className="text-xs text-gray-500">
-                        {new Date(r.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                    ))
+                  ) : (
+                    <div className="text-gray-300 text-[10px]">No class</div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-gray-500 text-center py-6">No attendance records yet</p>
-            )}
-          </CardContent>
-        </Card>
+            );
+          })}
+        </div>
+      );
+    })()}
+
+    {/* Legend */}
+    <div className="flex items-center justify-center space-x-4 mt-4 text-sm">
+      <div className="flex items-center space-x-1">
+        <div className="w-4 h-4 bg-green-500 rounded"></div>
+        <span>Present</span>
+      </div>
+      <div className="flex items-center space-x-1">
+        <div className="w-4 h-4 bg-red-500 rounded"></div>
+        <span>Absent</span>
+      </div>
+      <div className="flex items-center space-x-1">
+        <div className="w-4 h-4 bg-gray-200 rounded"></div>
+        <span>No Class</span>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+
       </main>
     </div>
   );

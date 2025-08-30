@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -17,9 +19,7 @@ interface Class {
   code: string;
   teacher?: {
     id: string;
-    user: {
-      name: string;
-    };
+    user: { name: string };
   };
 }
 
@@ -45,18 +45,14 @@ interface ClassEnrollment {
   enrolledAt: string;
 }
 
-// Helper function for API requests
+// ---------- Helper API ----------
 const apiRequest = async (method: string, url: string, body?: any) => {
   const token = localStorage.getItem("authToken");
   const options: RequestInit = {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-    },
+    headers: { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }) },
     ...(body && { body: JSON.stringify(body) }),
   };
-  
   const response = await fetch(url, options);
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -78,34 +74,48 @@ export default function AdminStudents() {
     queryKey: ["/api/classes"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/classes");
-      return res.json();
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
   });
 
-  // Fetch students
-  const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
-    queryKey: ["/api/students"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/students");
-      return res.json();
-    },
-  });
+// Fetch all students
+// Fetch all students
+const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
+  queryKey: ["/api/students"],
+  queryFn: async () => {
+    const res = await apiRequest("GET", "/api/students");
+    const data = await res.json();
+    // Support both { students: [...] } and [] directly
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.students)) return data.students;
+    return [];
+  },
+});
 
-  // Fetch class students (using the correct endpoint from routes)
-  const { data: classStudents = [] } = useQuery<Student[]>({
-    queryKey: ["/api/classes", selectedClass, "students"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/api/classes/${selectedClass}/students`);
-      return res.json();
-    },
-    enabled: !!selectedClass,
-  });
+// Fetch students enrolled in selected class
+const { data: classStudents = [] } = useQuery<Student[]>({
+  queryKey: ["/api/classes", selectedClass, "students"],
+  queryFn: async () => {
+    const res = await apiRequest("GET", `/api/classes/${selectedClass}/students`);
+    const data = await res.json();
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.students)) return data.students;
+    return [];
+  },
+  enabled: !!selectedClass,
+});
 
-  // Mutation: enroll student (using the correct endpoint)
+
+  // Mutation: enroll student
   const enrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; classId: string }) => {
-      const response = await apiRequest("POST", `/api/classes/${data.classId}/students/${data.studentId}`);
-      return response.json();
+      const response = await apiRequest(
+        "POST",
+        `/api/classes/${data.classId}/students/${data.studentId}`
+      );
+      const resData = await response.json();
+      return resData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
@@ -113,54 +123,41 @@ export default function AdminStudents() {
       setIsEnrollDialogOpen(false);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to enroll student",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to enroll student", variant: "destructive" });
     },
   });
 
-  // Mutation: unenroll student (Note: this endpoint doesn't exist in your routes)
+  // Mutation: unenroll student (disabled)
   const unenrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; classId: string }) => {
-      // This endpoint doesn't exist in your routes.ts - you need to implement it
       throw new Error("Unenroll endpoint not implemented in backend");
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
-      toast({ title: "Student unenrolled successfully" });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to unenroll student",
-        variant: "destructive",
-      });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] }),
+    onError: (error: Error) => toast({ title: "Error", description: error.message || "Failed to unenroll student", variant: "destructive" }),
   });
 
-  // Handle enroll form
+  // Handle enroll form submission
   const handleEnroll = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const studentId = formData.get("studentId") as string;
-
-    if (studentId && selectedClass) {
-      enrollStudentMutation.mutate({ studentId, classId: selectedClass });
-    }
+    if (studentId && selectedClass) enrollStudentMutation.mutate({ studentId, classId: selectedClass });
   };
 
-  // Data helpers
-  const selectedClassData = classes.find((c) => c.id === selectedClass);
-  const enrolledStudentIds = classStudents.map((s) => s.id);
-  const availableStudents = students.filter((s) => !enrolledStudentIds.includes(s.id));
+  // Show all students with label for already enrolled
+  const availableStudentsWithLabel = students.map(student => {
+    const isEnrolled = classStudents.some(s => s.id === student.id);
+    return { ...student, label: isEnrolled ? `${student.name} (Already Enrolled)` : student.name };
+  });
+
+  const selectedClassData = classes.find(c => c.id === selectedClass);
 
   // ---------- UI ----------
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
         <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
           <div className="flex items-center space-x-3">
             <GraduationCap className="w-6 h-6 text-slate-600" />
@@ -173,6 +170,7 @@ export default function AdminStudents() {
           </div>
         </header>
 
+        {/* Main Content */}
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Class Selection */}
@@ -191,10 +189,9 @@ export default function AdminStudents() {
                       <SelectValue placeholder="Choose a class to manage enrollments" />
                     </SelectTrigger>
                     <SelectContent>
-                      {classes.map((classItem) => (
-                        <SelectItem key={classItem.id} value={classItem.id}>
-                          {classItem.name} ({classItem.code})
-                          {classItem.teacher && ` - ${classItem.teacher.user.name}`}
+                      {classes.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.code}) {c.teacher && `- ${c.teacher.user.name}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -216,6 +213,8 @@ export default function AdminStudents() {
                         Manage students enrolled in this class
                       </p>
                     </div>
+
+                    {/* Enroll Student Button */}
                     <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
                       <DialogTrigger asChild>
                         <Button data-testid="button-enroll-student">
@@ -240,9 +239,9 @@ export default function AdminStudents() {
                                   <SelectValue placeholder="Choose student to enroll" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {availableStudents.map((student) => (
+                                  {availableStudentsWithLabel.map(student => (
                                     <SelectItem key={student.id} value={student.id}>
-                                      {student.name} ({student.studentId})
+                                      {student.label} ({student.studentId})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -252,7 +251,7 @@ export default function AdminStudents() {
                           <Button
                             type="submit"
                             className="w-full"
-                            disabled={enrollStudentMutation.isPending || availableStudents.length === 0}
+                            disabled={enrollStudentMutation.isPending || students.length === 0}
                             data-testid="button-confirm-enroll"
                           >
                             {enrollStudentMutation.isPending ? (
@@ -260,13 +259,14 @@ export default function AdminStudents() {
                             ) : (
                               <UserPlus className="w-4 h-4 mr-2" />
                             )}
-                            {availableStudents.length === 0 ? "No Students Available" : "Enroll Student"}
+                            {students.length === 0 ? "No Students Available" : "Enroll Student"}
                           </Button>
                         </form>
                       </DialogContent>
                     </Dialog>
                   </div>
                 </CardHeader>
+
                 <CardContent>
                   {classStudents.length === 0 ? (
                     <div className="text-center py-8">
@@ -280,7 +280,7 @@ export default function AdminStudents() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {classStudents.map((student) => (
+                      {classStudents.map(student => (
                         <div
                           key={student.id}
                           className="flex items-center justify-between p-4 border border-slate-200 rounded-lg"
@@ -290,18 +290,13 @@ export default function AdminStudents() {
                               <GraduationCap className="w-5 h-5 text-slate-600" />
                             </div>
                             <div>
-                              <h4
-                                className="font-medium text-slate-900"
-                                data-testid={`text-student-name-${student.id}`}
-                              >
+                              <h4 className="font-medium text-slate-900" data-testid={`text-student-name-${student.id}`}>
                                 {student.name}
                               </h4>
                               <p className="text-sm text-slate-500">
                                 Student ID: {student.studentId} | Roll No: {student.rollNo}
                               </p>
-                              {student.email && (
-                                <p className="text-xs text-slate-400">{student.email}</p>
-                              )}
+                              {student.email && <p className="text-xs text-slate-400">{student.email}</p>}
                             </div>
                           </div>
                           <div className="flex items-center space-x-3">
@@ -313,7 +308,7 @@ export default function AdminStudents() {
                               variant="ghost"
                               size="sm"
                               onClick={() => unenrollStudentMutation.mutate({ studentId: student.id, classId: selectedClass })}
-                              disabled // Disabled until backend implements unenroll endpoint
+                              disabled
                               data-testid={`button-unenroll-${student.id}`}
                               title="Unenroll endpoint not implemented"
                             >

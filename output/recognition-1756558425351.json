@@ -1,0 +1,71 @@
+{
+  "totalFaces": 5,
+  "recognizedStudents": [
+    "demo_student"
+  ],
+  "averageConfidence": 0.5146447241306304,
+  "detections": [
+    {
+      "imageIndex": 0,
+      "faceIndex": 0,
+      "bbox": [
+        798,
+        307,
+        922,
+        473
+      ],
+      "confidence": 0.47394752502441406,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 1,
+      "faceIndex": 0,
+      "bbox": [
+        801,
+        306,
+        924,
+        476
+      ],
+      "confidence": 0.48683425784111023,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 2,
+      "faceIndex": 0,
+      "bbox": [
+        803,
+        313,
+        924,
+        476
+      ],
+      "confidence": 0.5209125876426697,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 3,
+      "faceIndex": 0,
+      "bbox": [
+        803,
+        309,
+        923,
+        475
+      ],
+      "confidence": 0.5005629062652588,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 4,
+      "faceIndex": 0,
+      "bbox": [
+        801,
+        312,
+        924,
+        478
+      ],
+      "confidence": 0.5909663438796997,
+      "studentId": "demo_student"
+    }
+  ],
+  "processedImages": 5,
+  "timestamp": "2025-08-30T12:53:45.351Z"
+}

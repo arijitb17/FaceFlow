@@ -1,4 +1,3 @@
-// components/attendance/batch-processing-modal.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -18,7 +17,7 @@ import {
 interface ProcessingResults {
   totalImages: number;
   totalFacesDetected: number;
-  recognizedStudents: string[];
+  recognizedStudents: (string | { studentId: string; confidence?: number })[];
   averageConfidence: number;
   sessionId: string;
 }
@@ -44,9 +43,14 @@ export default function BatchProcessingModal({
 
   if (!isOpen || !results) return null;
 
-  const recognitionRate = results.totalFacesDetected > 0 
-    ? (results.recognizedStudents.length / results.totalFacesDetected * 100).toFixed(1)
-    : '0';
+  // Normalize recognized students to strings
+  const recognizedStudentIds = results.recognizedStudents.map((r) =>
+    typeof r === "string" ? r : r.studentId
+  );
+
+  const recognitionRate = results.totalFacesDetected > 0
+    ? ((recognizedStudentIds.length / results.totalFacesDetected) * 100).toFixed(1)
+    : "0";
 
   const confidencePercentage = (results.averageConfidence * 100).toFixed(1);
 
@@ -65,7 +69,7 @@ export default function BatchProcessingModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="p-6 space-y-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
@@ -82,7 +86,7 @@ export default function BatchProcessingModal({
             
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <Users className="h-8 w-8 text-purple-500 mx-auto mb-2" />
-              <p className="text-2xl font-bold text-purple-600">{results.recognizedStudents.length}</p>
+              <p className="text-2xl font-bold text-purple-600">{recognizedStudentIds.length}</p>
               <p className="text-sm text-gray-600">Students Present</p>
             </div>
             
@@ -126,7 +130,7 @@ export default function BatchProcessingModal({
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center justify-between">
-                <span>Recognized Students ({results.recognizedStudents.length})</span>
+                <span>Recognized Students ({recognizedStudentIds.length})</span>
                 <Button
                   variant="outline"
                   size="sm"
@@ -137,11 +141,11 @@ export default function BatchProcessingModal({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {results.recognizedStudents.length > 0 ? (
+              {recognizedStudentIds.length > 0 ? (
                 <div className="space-y-2">
                   {showDetails ? (
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
-                      {results.recognizedStudents.map((studentId, index) => (
+                    <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                      {recognizedStudentIds.map((studentId, index) => (
                         <div key={index} className="flex items-center justify-between p-2 bg-green-50 rounded border">
                           <span className="font-medium">{studentId}</span>
                           <Badge variant="default" className="bg-green-500">Present</Badge>
@@ -150,14 +154,14 @@ export default function BatchProcessingModal({
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-1">
-                      {results.recognizedStudents.slice(0, 10).map((studentId, index) => (
+                      {recognizedStudentIds.slice(0, 10).map((studentId, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
                           {studentId}
                         </Badge>
                       ))}
-                      {results.recognizedStudents.length > 10 && (
+                      {recognizedStudentIds.length > 10 && (
                         <Badge variant="secondary" className="text-xs">
-                          +{results.recognizedStudents.length - 10} more
+                          +{recognizedStudentIds.length - 10} more
                         </Badge>
                       )}
                     </div>
@@ -214,7 +218,6 @@ export default function BatchProcessingModal({
               <Button
                 variant="outline"
                 onClick={() => {
-                  // Download results as JSON
                   const dataStr = JSON.stringify(results, null, 2);
                   const dataBlob = new Blob([dataStr], { type: 'application/json' });
                   const url = URL.createObjectURL(dataBlob);

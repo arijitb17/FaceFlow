@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -14,71 +14,134 @@ type Class = {
   name: string;
   code: string;
   isActive: boolean;
+  teacherId: string;
+};
+
+type ProcessingResults = {
+  totalImages: number;
+  totalFacesDetected: number;
+  recognizedStudents: string[];
+  averageConfidence: number;
+  sessionId: string;
+};
+
+type TrainingStatus = {
+  isTraining: boolean;
+  progress: number;
+  message: string;
 };
 
 export default function LiveAttendance() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
-  const [batchResults, setBatchResults] = useState<any>(null);
+  const [batchResults, setBatchResults] = useState<ProcessingResults | null>(null);
+  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus>({
+    isTraining: false,
+    progress: 0,
+    message: "Ready",
+  });
 
-  // Fetch classes for session creation
+  // Selected class for attendance
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+
+  // Fetch classes assigned to the logged-in teacher
   const { data: classes = [] } = useQuery<Class[]>({
-    queryKey: ["/api/classes"],
+    queryKey: ["teacher-classes"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/classes");
+      const res = await apiRequest("GET", "/api/class"); // Backend should filter by logged-in teacher
+      if (!res.ok) throw new Error("Failed to fetch classes");
       return res.json();
     },
-    initialData: [],
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Set default selected class when classes load
+  useEffect(() => {
+    if (classes.length > 0 && !selectedClass) {
+      setSelectedClass(classes[0]);
+    }
+  }, [classes, selectedClass]);
+
+  // Fetch training status periodically
+  const { data: trainingData } = useQuery<TrainingStatus, Error>({
+    queryKey: ["training-status"],
+    queryFn: async (): Promise<TrainingStatus> => {
+      const res = await apiRequest("GET", "/api/face-recognition/training-status");
+      if (!res.ok) throw new Error("Failed to fetch training status");
+      return res.json() as Promise<TrainingStatus>;
+    },
+    refetchInterval: 5000,
+  });
+
+  // Update local state whenever trainingData changes
+  useEffect(() => {
+    if (trainingData) {
+      setTrainingStatus(trainingData);
+    }
+  }, [trainingData]);
 
   const handleBatchComplete = async (images: string[]) => {
     try {
-      // Create a new session - use first active class or null if none available
-      const activeClass = classes.find(c => c.isActive) || classes[0];
-      
-      const sessionData = {
-        classId: activeClass?.id || null
-      };
+      if (!images.length) return;
+      if (!selectedClass) {
+        alert("Please select a class to record attendance.");
+        return;
+      }
 
-      const sessionResponse = await apiRequest("POST", "/api/attendance-sessions", sessionData);
+      // Create new attendance session for the selected class
+      const sessionResponse = await apiRequest("POST", "/api/attendance-sessions", {
+        classId: selectedClass.id,
+      });
+      if (!sessionResponse.ok) throw new Error("Failed to create attendance session");
       const session = await sessionResponse.json();
 
       // Process the batch
       const response = await apiRequest("POST", "/api/face-recognition/process-batch", {
         sessionId: session.id,
-        images
+        images,
       });
+      if (!response.ok) throw new Error("Batch processing failed");
+      const data = await response.json();
 
-      const results = await response.json();
-      setBatchResults(results.results);
+      const processingResults: ProcessingResults = {
+        totalImages: data.results.totalImages,
+        totalFacesDetected: data.results.totalFacesDetected,
+        recognizedStudents: data.results.recognizedStudents,
+        averageConfidence: data.results.averageConfidence,
+        sessionId: data.results.sessionId,
+      };
+
+      setBatchResults(processingResults);
       setShowProcessingModal(true);
     } catch (error) {
       console.error("Batch processing failed:", error);
+      alert((error as Error).message);
     }
   };
 
   return (
     <div className="flex h-screen">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)}
-      />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
-        <Header 
-          title="Live Attendance" 
+        <Header
+          title="Live Attendance"
           subtitle="Capture and process classroom attendance in real-time"
           onMenuClick={() => setIsSidebarOpen(true)}
         />
-        
+
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
             {/* Main Webcam Capture */}
             <div className="lg:col-span-3">
-              <WebcamCapture onBatchComplete={handleBatchComplete} />
+              <WebcamCapture
+                onBatchComplete={handleBatchComplete}
+                disabled={!selectedClass} // Disable capture if no class selected
+              />
             </div>
 
             {/* Sidebar Info */}
             <div className="space-y-4 lg:space-y-6">
+              {/* Capture Tips */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold">Capture Tips</CardTitle>
@@ -105,33 +168,45 @@ export default function LiveAttendance() {
                 </CardContent>
               </Card>
 
-              {/* Active Class Info */}
+              {/* Select Class */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold">Current Session</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {classes.length > 0 ? (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span>Active Class:</span>
-                        <span className="font-medium">
-                          {classes.find(c => c.isActive)?.name || classes[0]?.name || "None"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Class Code:</span>
-                        <span className="font-medium">
-                          {classes.find(c => c.isActive)?.code || classes[0]?.code || "—"}
-                        </span>
-                      </div>
-                    </>
+                    <select
+                      className="w-full border rounded px-2 py-1"
+                      value={selectedClass?.id || ""}
+                      onChange={(e) => {
+                        const cls = classes.find((c) => c.id === e.target.value) || null;
+                        setSelectedClass(cls);
+                      }}
+                    >
+                      {classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.code})
+                        </option>
+                      ))}
+                    </select>
                   ) : (
-                    <div className="text-sm text-gray-500">No classes available</div>
+                    <div className="text-sm text-gray-500">No classes assigned</div>
+                  )}
+
+                  {selectedClass && (
+                    <div className="mt-2 text-sm">
+                      <div>
+                        <span className="font-medium">Class Name: </span>{selectedClass.name}
+                      </div>
+                      <div>
+                        <span className="font-medium">Class Code: </span>{selectedClass.code}
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
+              {/* Training & System Status */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold">Processing Status</CardTitle>
@@ -143,7 +218,15 @@ export default function LiveAttendance() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Training Status:</span>
-                    <span className="text-blue-600 font-medium">Up to date</span>
+                    <span
+                      className={`font-medium ${
+                        trainingStatus.isTraining ? "text-orange-600" : "text-blue-600"
+                      }`}
+                    >
+                      {trainingStatus.isTraining
+                        ? `${trainingStatus.message} (${trainingStatus.progress}%)`
+                        : "Up to date"}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>System Status:</span>
@@ -156,6 +239,7 @@ export default function LiveAttendance() {
         </main>
       </div>
 
+      {/* Batch Processing Modal */}
       <BatchProcessingModal
         isOpen={showProcessingModal}
         onClose={() => setShowProcessingModal(false)}

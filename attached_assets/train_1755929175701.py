@@ -148,7 +148,7 @@ def main():
         with open(OUTPUT_FILE, "wb") as f:
             pickle.dump(face_dict, f)
 
-        print(f"\n✅ Training Complete!")
+        print(f"\n Training Complete!")
         print(f"   - Students trained: {len(face_dict)}")
         print(f"   - Total images processed: {total_images_processed}")
         print(f"   - Total training samples: {len(embedding_vectors)}")
@@ -229,7 +229,7 @@ def create_enhanced_visualization(embedding_vectors, labels):
 def assess_training_quality(face_dict, labels):
     """Assess the quality of training data"""
     try:
-        print(f"\n📊 Training Quality Assessment:")
+        print(f"\n Training Quality Assessment:")
         
         # Calculate embedding similarities within and between students
         student_names = list(face_dict.keys())
