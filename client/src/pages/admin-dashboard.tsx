@@ -167,10 +167,16 @@ export default function AdminDashboard() {
         onClose={() => setShowCreateAdmin(false)}
       />
       <CredentialModal
-        open={showCredentialModal}
-        onClose={() => setShowCredentialModal(false)}
-        selectedUsers={users}
-      />
+  open={showCredentialModal}
+  onClose={() => setShowCredentialModal(false)}
+  selectedUsers={users}
+  onSend={(data) => {
+    console.log("Sending credentials to selected users:", data);
+    toast({ title: "Credentials sent", description: "Check console for details" });
+    setShowCredentialModal(false);
+  }}
+/>
+
     </div>
   );
 }

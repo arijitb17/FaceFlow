@@ -13,6 +13,7 @@ import { registerFaceRecognitionRoutes } from "./routes/face_recognition_routes"
 import { registerDashboardRoutes } from "./routes/dashboard_routes";
 import { registerSettingsRoutes } from "./routes/settings_routes";
 
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Register all route modules
   registerAuthRoutes(app);
@@ -24,6 +25,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerFaceRecognitionRoutes(app);
   registerDashboardRoutes(app);
   registerSettingsRoutes(app);
+
 
   // Return HTTP server
   const httpServer = createServer(app);

@@ -1,34 +1,32 @@
 {
-  "success": true,
-  "totalImages": 5,
-  "totalFacesDetected": 5,
+  "totalFaces": 5,
   "recognizedStudents": [
     "demo_student"
   ],
-  "averageConfidence": 0.5906850457191467,
-  "results": [
+  "averageConfidence": 0.5681240439414978,
+  "detections": [
     {
       "imageIndex": 0,
       "faceIndex": 0,
       "bbox": [
-        749,
-        346,
-        874,
-        504
+        740,
+        347,
+        873,
+        519
       ],
-      "confidence": 0.5780178308486938,
+      "confidence": 0.5429527759552002,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 1,
       "faceIndex": 0,
       "bbox": [
-        750,
-        345,
-        873,
-        504
+        746,
+        351,
+        882,
+        520
       ],
-      "confidence": 0.5927333831787109,
+      "confidence": 0.5993450284004211,
       "studentId": "demo_student"
     },
     {
@@ -36,36 +34,38 @@
       "faceIndex": 0,
       "bbox": [
         749,
-        349,
-        874,
-        504
+        354,
+        885,
+        523
       ],
-      "confidence": 0.6177896857261658,
+      "confidence": 0.579862117767334,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 3,
       "faceIndex": 0,
       "bbox": [
-        749,
-        346,
-        874,
-        504
+        745,
+        351,
+        879,
+        524
       ],
-      "confidence": 0.5763639211654663,
+      "confidence": 0.5498505234718323,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 4,
       "faceIndex": 0,
       "bbox": [
-        750,
-        349,
-        874,
-        505
+        746,
+        352,
+        879,
+        524
       ],
-      "confidence": 0.5885204076766968,
+      "confidence": 0.5686097741127014,
       "studentId": "demo_student"
     }
-  ]
+  ],
+  "processedImages": 5,
+  "timestamp": "2025-08-31T20:31:34.450Z"
 }

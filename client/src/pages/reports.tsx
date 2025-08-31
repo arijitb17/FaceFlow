@@ -10,30 +10,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { 
-  Download, 
-  Search, 
-  Calendar as CalendarIcon, 
-  BarChart3, 
-  Users, 
-  TrendingUp,
-  FileText,
-  Filter
-} from "lucide-react";
+import { Download, Search, Calendar as CalendarIcon, BarChart3, Users, TrendingUp, FileText, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
+type AttendanceStudent = {
+  id: string;
+  name: string;
+  studentId: string;
+  recognized: boolean;
+  confidence?: number;
+};
 
 type AttendanceSession = {
   id: string;
   classId?: string;
   date?: string;
-  totalImages?: number;
-  totalFacesDetected?: number;
-  totalStudentsRecognized?: number;
-  averageConfidence?: number;
+  students: AttendanceStudent[];
   status?: string;
   createdAt?: string;
 };
@@ -43,6 +38,7 @@ type Class = {
   name: string;
   code: string;
 };
+
 type ColorKey = "blue" | "green" | "purple" | "orange";
 
 interface StatCardProps {
@@ -50,73 +46,83 @@ interface StatCardProps {
   value: string | number;
   icon: React.ReactNode;
   color: ColorKey;
-  dataTestId?: string;
 }
+
 export default function Reports() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
 
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<AttendanceSession[]>({
     queryKey: ["/api/attendance-sessions"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/attendance-sessions");
-      return res.json();
+      return (await res.json()) ?? [];
     },
-    initialData: [],
   });
 
   const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/classes");
-      return res.json();
+      return (await res.json()) ?? [];
     },
-    initialData: [],
   });
 
-  // Filter sessions
-  const filteredSessions = sessions.filter(session => {
-    if (selectedClass !== "all" && session.classId !== selectedClass) return false;
-    if (dateRange.from && session.date && new Date(session.date) < dateRange.from) return false;
-    if (dateRange.to && session.date && new Date(session.date) > dateRange.to) return false;
-    if (searchQuery) {
-      const cls = classes.find(c => c.id === session.classId);
-      const searchLower = searchQuery.toLowerCase();
-      if (!cls?.name.toLowerCase().includes(searchLower) && 
-          !cls?.code.toLowerCase().includes(searchLower) &&
-          !session.id.toLowerCase().includes(searchLower)) {
-        return false;
-      }
+  const filteredSessions = sessions.filter((session) => {
+    const cls = classes.find((c) => c.id === session.classId);
+    const searchLower = searchQuery.toLowerCase();
+
+    if (selectedClass !== "all" && (session.classId ?? "none") !== selectedClass) return false;
+    if (selectedDate && session.date) {
+      const sessionDay = format(new Date(session.date), "yyyy-MM-dd");
+      const selectedDay = format(selectedDate, "yyyy-MM-dd");
+      if (sessionDay !== selectedDay) return false;
     }
+    if (searchQuery) {
+      if (!cls) return false;
+      if (!cls.name.toLowerCase().includes(searchLower) && !cls.code.toLowerCase().includes(searchLower)) return false;
+    }
+
     return true;
   });
 
-  // Export CSV
+  const totalSessions = filteredSessions.length;
+  const totalStudentsRecognized = filteredSessions.reduce(
+    (sum, s) => sum + (s.students?.filter((st) => st.recognized).length ?? 0),
+    0
+  );
+  const averageAttendance = totalSessions ? Math.round(totalStudentsRecognized / totalSessions) : 0;
+
+  const averageAccuracy =
+    totalSessions > 0
+      ? filteredSessions.reduce((sum, s) => {
+          const studentCount = s.students?.length ?? 0;
+          if (studentCount === 0) return sum;
+          const sessionAccuracy = s.students!.reduce((ssum, st) => ssum + (st.confidence ?? 0), 0) / studentCount;
+          return sum + sessionAccuracy;
+        }, 0) / totalSessions
+      : 0;
+
   const exportToCSV = () => {
     if (!filteredSessions.length) return;
-    const csvData = filteredSessions.map(session => {
-      const cls = classes.find(c => c.id === session.classId);
-      const sessionDate = session.date ? new Date(session.date) : undefined;
-      return {
+    const csvData = filteredSessions.flatMap((session) => {
+      const cls = classes.find((c) => c.id === session.classId);
+      return session.students?.map((st) => ({
         Class: cls?.name || "Unknown",
         Code: cls?.code || "N/A",
-        Date: sessionDate ? format(sessionDate, "yyyy-MM-dd") : "N/A",
-        "Total Images": session.totalImages ?? 0,
-        "Faces Detected": session.totalFacesDetected ?? 0,
-        "Students Recognized": session.totalStudentsRecognized ?? 0,
-        "Average Confidence": `${((session.averageConfidence ?? 0) * 100).toFixed(1)}%`,
-        Status: session.status ?? "Unknown",
-      };
+        Date: session.date ? format(new Date(session.date), "yyyy-MM-dd") : "N/A",
+        "Student ID": st.studentId,
+        Name: st.name,
+        Recognized: st.recognized ? "Yes" : "No",
+        Confidence: st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A",
+        Status: session.status || "Unknown",
+      })) ?? [];
     });
+    if (!csvData.length) return;
 
-    const csv = [
-      Object.keys(csvData[0]).join(","),
-      ...csvData.map(row => Object.values(row).map(v => `"${v}"`).join(","))
-    ].join("\n");
-
+    const csv = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).map((v) => `"${v}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -126,24 +132,16 @@ export default function Reports() {
     URL.revokeObjectURL(url);
   };
 
-  // Summary stats
-  const totalSessions = filteredSessions.length;
-  const totalStudentsRecognized = filteredSessions.reduce((sum, s) => sum + (s.totalStudentsRecognized ?? 0), 0);
-  const averageAttendance = totalSessions > 0 ? Math.round(totalStudentsRecognized / totalSessions) : 0;
-  const averageAccuracy = totalSessions > 0 ? filteredSessions.reduce((sum, s) => sum + (s.averageConfidence ?? 0), 0) / totalSessions : 0;
-
   if (sessionsLoading) {
     return (
       <div className="flex h-screen">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex-1">
           <Header title="Reports" subtitle="Loading..." onMenuClick={() => setIsSidebarOpen(true)} />
-          <div className="p-4 lg:p-6">
-            <div className="animate-pulse space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="bg-gray-200 h-20 rounded-lg"></div>
-              ))}
-            </div>
+          <div className="p-4 lg:p-6 space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="animate-pulse bg-gray-200 h-20 rounded-lg"></div>
+            ))}
           </div>
         </div>
       </div>
@@ -156,19 +154,18 @@ export default function Reports() {
       <div className="flex-1 flex flex-col min-h-0">
         <Header title="Reports" subtitle="View and export attendance analytics" onMenuClick={() => setIsSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <StatCard title="Total Sessions" value={totalSessions} icon={<BarChart3 />} color="blue" dataTestId="total-sessions" />
-            <StatCard title="Avg Attendance" value={averageAttendance} icon={<Users />} color="green" dataTestId="avg-attendance" />
-            <StatCard title="Total Students" value={totalStudentsRecognized} icon={<TrendingUp />} color="purple" dataTestId="total-students-recognized" />
-            <StatCard title="Avg Accuracy" value={`${(averageAccuracy * 100).toFixed(1)}%`} icon={<FileText />} color="orange" dataTestId="avg-accuracy" />
+            <StatCard title="Total Sessions" value={totalSessions} icon={<BarChart3 />} color="blue" />
+            <StatCard title="Avg Attendance" value={averageAttendance} icon={<Users />} color="green" />
+            <StatCard title="Total Students Recognized" value={totalStudentsRecognized} icon={<TrendingUp />} color="purple" />
+            <StatCard title="Avg Accuracy" value={`${(averageAccuracy * 100).toFixed(1)}%`} icon={<FileText />} color="orange" />
           </div>
 
           {/* Filters */}
           <Card className="shadow-sm border border-gray-200">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2" data-testid="filters-title">
+              <CardTitle className="flex items-center space-x-2">
                 <Filter className="h-5 w-5" />
                 <span>Filters</span>
               </CardTitle>
@@ -177,13 +174,8 @@ export default function Reports() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <SearchFilter value={searchQuery} onChange={setSearchQuery} />
                 <ClassFilter classes={classes} selectedClass={selectedClass} setSelectedClass={setSelectedClass} />
-                <DateRangeFilter dateRange={dateRange} setDateRange={setDateRange} showDatePicker={showDatePicker} setShowDatePicker={setShowDatePicker} />
-                <Button 
-                  onClick={exportToCSV} 
-                  disabled={!filteredSessions.length} 
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                  data-testid="button-export-csv"
-                >
+                <DateFilter date={selectedDate} setDate={setSelectedDate} />
+                <Button onClick={exportToCSV} disabled={!filteredSessions.length} className="w-full bg-blue-600 text-white hover:bg-blue-700">
                   <Download className="mr-2 h-4 w-4" />
                   Export CSV
                 </Button>
@@ -199,8 +191,8 @@ export default function Reports() {
   );
 }
 
-// ---- Helper Components ----
-function StatCard({ title, value, icon, color, dataTestId }: StatCardProps) {
+// -------------------- Helper Components --------------------
+function StatCard({ title, value, icon, color }: StatCardProps) {
   const colorClasses: Record<ColorKey, string> = {
     blue: "bg-blue-50 text-blue-600",
     green: "bg-green-50 text-green-600",
@@ -209,52 +201,40 @@ function StatCard({ title, value, icon, color, dataTestId }: StatCardProps) {
   };
   return (
     <Card className="shadow-sm border border-gray-200">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-gray-600 text-sm font-medium">{title}</p>
-            <p
-              className="text-3xl font-bold text-gray-900"
-              data-testid={dataTestId}
-            >
-              {value}
-            </p>
-          </div>
-          <div
-            className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}
-          >
-            {icon}
-          </div>
+      <CardContent className="p-6 flex items-center justify-between">
+        <div>
+          <p className="text-gray-600 text-sm font-medium">{title}</p>
+          <p className="text-3xl font-bold text-gray-900">{value}</p>
         </div>
+        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>{icon}</div>
       </CardContent>
     </Card>
   );
 }
 
-
-function SearchFilter({ value, onChange }: any) {
+function SearchFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div>
       <Label htmlFor="search">Search</Label>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input id="search" placeholder="Search sessions..." value={value} onChange={(e) => onChange(e.target.value)} className="pl-10" data-testid="input-search-reports" />
+        <Input id="search" placeholder="Search..." value={value} onChange={(e) => onChange(e.target.value)} className="pl-10" />
       </div>
     </div>
   );
 }
 
-function ClassFilter({ classes, selectedClass, setSelectedClass }: any) {
+function ClassFilter({ classes, selectedClass, setSelectedClass }: { classes: Class[]; selectedClass: string; setSelectedClass: (v: string) => void }) {
   return (
     <div>
-      <Label htmlFor="class">Class</Label>
+      <Label>Class</Label>
       <Select value={selectedClass} onValueChange={setSelectedClass}>
-        <SelectTrigger data-testid="select-class-filter">
+        <SelectTrigger>
           <SelectValue placeholder="All Classes" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Classes</SelectItem>
-          {classes.map((cls: Class) => (
+          {classes.map((cls) => (
             <SelectItem key={cls.id} value={cls.id}>{cls.name} ({cls.code})</SelectItem>
           ))}
         </SelectContent>
@@ -263,33 +243,33 @@ function ClassFilter({ classes, selectedClass, setSelectedClass }: any) {
   );
 }
 
-function DateRangeFilter({ dateRange, setDateRange, showDatePicker, setShowDatePicker }: any) {
+function DateFilter({ date, setDate }: { date?: Date; setDate: (d?: Date) => void }) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
   return (
     <div>
-      <Label>Date Range</Label>
+      <Label>Date</Label>
       <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className={cn("w-full justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}
-            data-testid="button-date-range"
+            className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {dateRange.from ? dateRange.to ? `${format(dateRange.from, "LLL dd, y")} - ${format(dateRange.to, "LLL dd, y")}` : format(dateRange.from, "LLL dd, y") : "Pick a date range"}
+            {date ? format(date, "LLL dd, yyyy") : "Pick a date"}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <Calendar initialFocus mode="range" defaultMonth={dateRange.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+          <Calendar initialFocus mode="single" defaultMonth={date} selected={date} onSelect={setDate} />
         </PopoverContent>
       </Popover>
     </div>
   );
 }
 
-function ReportsTable({ sessions, classes }: any) {
+function ReportsTable({ sessions, classes }: { sessions: AttendanceSession[]; classes: Class[] }) {
   if (!sessions.length) {
     return (
-      <div className="text-center py-12" data-testid="no-reports-message">
+      <div className="text-center py-12">
         <BarChart3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
         <p className="text-gray-600">No attendance sessions match your current filters</p>
@@ -300,62 +280,35 @@ function ReportsTable({ sessions, classes }: any) {
   return (
     <Card className="shadow-sm border border-gray-200">
       <CardHeader>
-        <CardTitle data-testid="reports-table-title">Attendance Reports ({sessions.length})</CardTitle>
+        <CardTitle>Attendance Reports ({sessions.length})</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full" data-testid="reports-table">
+          <table className="w-full table-auto border-collapse">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faces</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Accuracy</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recognized</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sessions.map((session: AttendanceSession, index: number) => {
-                const cls = classes.find((c: Class) => c.id === session.classId);
+              {sessions.flatMap((session) => {
+                const cls = classes.find((c) => c.id === session.classId);
                 const sessionDate = session.date ? new Date(session.date) : undefined;
-                const status = session.status ?? "Unknown";
-                const confidence = session.averageConfidence ?? 0;
-                return (
-                  <tr key={session.id} className="hover:bg-gray-50" data-testid={`report-row-${index}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{cls?.name || "Unknown Class"}</div>
-                      <div className="text-sm text-gray-500">{cls?.code || "—"}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{sessionDate ? format(sessionDate, "MMM dd, yyyy") : "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{session.totalImages ?? 0}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{session.totalFacesDetected ?? 0}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{session.totalStudentsRecognized ?? 0}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge 
-                        variant="secondary" 
-                        className={cn(
-                          confidence >= 0.9 ? "bg-green-100 text-green-800" : 
-                          confidence >= 0.8 ? "bg-yellow-100 text-yellow-800" : 
-                          "bg-red-100 text-red-800"
-                        )}
-                      >
-                        {(confidence * 100).toFixed(1)}%
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={status === "completed" ? "default" : "secondary"}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex space-x-2">
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" data-testid={`button-view-session-${index}`}>View</Button>
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-gray-800" data-testid={`button-export-session-${index}`}>Export</Button>
-                    </td>
+                return (session.students ?? []).map((st) => (
+                  <tr key={`${session.id}-${st.id}`} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">{cls?.name || "Unknown"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{sessionDate ? format(sessionDate, "MMM dd, yyyy") : "N/A"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{st.studentId}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{st.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{st.recognized ? "Yes" : "No"}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A"}</td>
                   </tr>
-                );
+                ));
               })}
             </tbody>
           </table>

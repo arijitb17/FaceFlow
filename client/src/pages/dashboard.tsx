@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { User, Clock } from "lucide-react";
-import { useState } from "react";
+import { useState,useEffect } from "react";
 
 // Types
 type Stats = {
@@ -40,9 +40,23 @@ type Session = {
 };
 
 export default function Dashboard() {
+    const [userName, setUserName] = useState("Guest");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [batchResults, setBatchResults] = useState<any>(null);
+useEffect(() => {
+  async function fetchUser() {
+    try {
+      const res = await apiRequest("GET", "/api/auth/me");
+      const user = await res.json();
+      setUserName(user.name); // <- sets the fetched name
+    } catch (err) {
+      console.error("Failed to fetch user:", err);
+      setUserName("Guest"); // fallback
+    }
+  }
+  fetchUser();
+}, []);
 
   // Fetch stats
   const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
@@ -103,7 +117,16 @@ export default function Dashboard() {
       <div className="flex h-screen">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex-1">
-          <Header title="Dashboard" subtitle="Loading..." onMenuClick={() => setIsSidebarOpen(true)} />
+         <Header
+  title="Dashboard"
+  subtitle="Monitor attendance and manage your classes"
+  showStartAttendance
+  onStartAttendance={() => {}}
+  onMenuClick={() => setIsSidebarOpen(true)}
+  userName={userName} // <-- add this
+/>
+
+
           <div className="p-4 lg:p-6">
             <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {[...Array(4)].map((_, i) => (
@@ -118,8 +141,18 @@ export default function Dashboard() {
 
   // Get today's active classes
   const todayClasses = classes?.filter(c => c.isActive).slice(0, 2) || [];
-  // Get recent sessions (limit to last 3)
-  const recentSessions = sessions?.slice(-3).reverse() || [];
+  
+  // Get recent sessions - sort by createdAt or date, then take the most recent 3
+  const recentSessions = sessions
+    ?.filter(session => session.createdAt || session.date) // Only include sessions with timestamps
+    ?.sort((a, b) => {
+      // Sort by createdAt first, then by date as fallback
+      const timeA = new Date(a.createdAt || a.date || 0).getTime();
+      const timeB = new Date(b.createdAt || b.date || 0).getTime();
+      return timeB - timeA; // Most recent first
+    })
+    ?.slice(0, 3) // Take only the 3 most recent
+    || [];
 
   return (
     <div className="flex h-screen">
@@ -180,6 +213,7 @@ export default function Dashboard() {
                 <CardContent>
                   {recentSessions.length > 0 ? recentSessions.map((session) => {
                     const classData = classes.find(c => c.id === session.classId);
+                    const sessionTime = session.createdAt || session.date;
                     return (
                       <div key={session.id} className="flex items-center space-x-3 mb-4 last:mb-0">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
@@ -195,7 +229,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <div className="text-right text-xs text-gray-500">
-                          {session.createdAt ? new Date(session.createdAt).toLocaleTimeString() : "—"}
+                          {sessionTime ? new Date(sessionTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}
                         </div>
                       </div>
                     );
@@ -231,6 +265,7 @@ export default function Dashboard() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {recentSessions.length > 0 ? recentSessions.map((session) => {
                       const classData = classes.find(c => c.id === session.classId);
+                      const sessionDate = session.date || session.createdAt;
                       return (
                         <tr key={session.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -238,7 +273,7 @@ export default function Dashboard() {
                             <div className="text-sm text-gray-500">{classData?.code || "—"}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
-                            {session.date ? new Date(session.date).toLocaleDateString() : "—"}
+                            {sessionDate ? new Date(sessionDate).toLocaleDateString() : "—"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {session.totalStudentsRecognized || 0}

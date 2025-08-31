@@ -48,7 +48,7 @@ export default function LiveAttendance() {
   const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ["teacher-classes"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/class"); // Backend should filter by logged-in teacher
+      const res = await apiRequest("GET", "/api/classes"); // Backend should filter by logged-in teacher
       if (!res.ok) throw new Error("Failed to fetch classes");
       return res.json();
     },

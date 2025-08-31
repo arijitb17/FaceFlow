@@ -168,29 +168,22 @@ async updateProfile(userId: string, updates: Partial<User> & Partial<Student>) {
   }
 
   async getUserWithProfile(id: string): Promise<UserWithProfile | undefined> {
-    const user = await this.getUser(id);
-    if (!user) return undefined;
+  const user = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  if (!user[0]) return undefined;
 
-    const profile: UserWithProfile = { ...user };
+  const profile: UserWithProfile = { ...user[0] };
 
-    if (user.role === "teacher") {
-      const teacherResult = await db
-        .select()
-        .from(teachers)
-        .where(eq(teachers.userId, id))
-        .limit(1);
-      profile.teacher = teacherResult[0];
-    } else if (user.role === "student") {
-      const studentResult = await db
-        .select()
-        .from(students)
-        .where(eq(students.userId, id))
-        .limit(1);
-      profile.student = studentResult[0];
-    }
-
-    return profile;
+  if (user[0].role === "teacher") {
+    const teacherResult = await db.select().from(teachers).where(eq(teachers.userId, id)).limit(1);
+    profile.teacher = teacherResult[0];
+  } else if (user[0].role === "student") {
+    const studentResult = await db.select().from(students).where(eq(students.userId, id)).limit(1);
+    profile.student = studentResult[0];
   }
+
+  return profile;
+}
+
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const hashedPassword = await bcrypt.hash(insertUser.password, 10);
@@ -289,29 +282,101 @@ async getUsersByRole(role: "admin" | "teacher" | "student"): Promise<UserWithPro
 
   return result;
 }
+// ---------------- REPORTS ----------------
+async getTeacherReport(userId: string): Promise<{
+  teacher: Teacher;
+  classes: (Class & { students: (Student & { user: User })[]; sessions: (AttendanceSession & { recognitionResults: RecognitionResult[] })[] })[];
+} | null> {
+  const teacher = await this.getTeacher(userId);
+  if (!teacher) return null;
 
-async getStudentsByTeacherViaClasses(teacherUserId: string): Promise<(Student & { user: User })[]> {
-  // Get classes of teacher
-  const teacherClasses = await db.select().from(classes).where(eq(classes.teacherId, teacherUserId));
+  const classes = await this.getClassesByTeacher(userId);
 
-  if (teacherClasses.length === 0) return [];
+  const detailedClasses = await Promise.all(classes.map(async (cls) => {
+    const students = await this.getClassStudents(cls.id);
+    const sessions = await this.getAttendanceSessionsByTeacher(userId)
+      .then(sessionsForTeacher => sessionsForTeacher.filter(s => s.classId === cls.id))
+      .then(async sessionsForClass => {
+        return Promise.all(sessionsForClass.map(async (session) => {
+          const recognitionResults = await this.getRecognitionResults(session.id);
+          return { ...session, recognitionResults };
+        }));
+      });
+
+    return { ...cls, students, sessions };
+  }));
+
+  return { teacher, classes: detailedClasses };
+}
+
+async getClassesByTeacher(userId: string): Promise<Class[]> {
+  // Get teacher record using userId
+  const teacher = await db
+    .select()
+    .from(teachers)
+    .where(eq(teachers.userId, userId))
+    .limit(1);
+
+  if (!teacher[0]) return [];
+
+  // Get classes taught by this teacher
+  const teacherClasses = await db
+    .select()
+    .from(classes)
+    .where(eq(classes.teacherId, teacher[0].id));
+
+  return teacherClasses;
+}
+async getStudentsByTeacherViaClasses(userId: string): Promise<(Student & { user: User })[]> {
+  // 1. Get teacher record using userId
+  const teacher = await db
+    .select()
+    .from(teachers)
+    .where(eq(teachers.userId, userId))
+    .limit(1);
+
+  if (!teacher[0]) return [];
+  const teacherId = teacher[0].id;
+
+  // 2. Get classes taught by this teacher
+  const teacherClasses = await db
+    .select()
+    .from(classes)
+    .where(eq(classes.teacherId, teacherId));
+  
+  if (!teacherClasses.length) return [];
 
   const classIds = teacherClasses.map(c => c.id);
 
-  // Get students enrolled in those classes
+  // 3. Get enrolled students + their linked user data
   const enrollments = await db
-    .select({ student: students, user: users })
+    .select({ 
+      student: students, 
+      user: users,
+      enrollment: classEnrollments 
+    })
     .from(classEnrollments)
     .innerJoin(students, eq(classEnrollments.studentId, students.id))
     .innerJoin(users, eq(students.userId, users.id))
     .where(inArray(classEnrollments.classId, classIds));
 
-  return enrollments.map(r => ({
-    ...r.student,
-    user: r.user,
-    isTrainingComplete: r.student.isTrainingComplete ?? false,
-  }));
+  // 4. Remove duplicates (student might be in multiple classes)
+  const uniqueStudents = new Map();
+  for (const enrollment of enrollments) {
+    const studentId = enrollment.student.id;
+    if (!uniqueStudents.has(studentId)) {
+      uniqueStudents.set(studentId, {
+        ...enrollment.student,
+        user: enrollment.user,
+        isTrainingComplete: enrollment.student.isTrainingComplete ?? false,
+      });
+    }
+  }
+
+  return Array.from(uniqueStudents.values());
 }
+
+
 
   // ---------------- TEACHERS ----------------
   async createTeacher(insertTeacher: InsertTeacher): Promise<Teacher> {
@@ -345,9 +410,10 @@ async getStudents(): Promise<(Student & { user: User })[]> {
   return rows.map(r => ({
     ...r.student,
     user: r.user,
-    isTrainingComplete: r.student.isTrainingComplete ?? false, // Fix here
+    isTrainingComplete: r.student.isTrainingComplete ?? false,
   }));
 }
+
 
 
 async getStudent(idOrUserId: string): Promise<Student | undefined> {
@@ -375,21 +441,15 @@ async getStudent(idOrUserId: string): Promise<Student | undefined> {
   }
 
   async createStudent(insertStudent: InsertStudent): Promise<Student> {
-    const [student] = await db
-      .insert(students)
-      .values(insertStudent)
-      .returning();
-    return student;
-  }
+  const [student] = await db.insert(students).values(insertStudent).returning();
+  return student;
+}
 
-  async updateStudent(id: string, updates: Partial<Student>): Promise<Student | undefined> {
-    const [updated] = await db
-      .update(students)
-      .set(updates)
-      .where(eq(students.id, id))
-      .returning();
-    return updated;
-  }
+async updateStudent(id: string, updates: Partial<Student>): Promise<Student | undefined> {
+  const [updated] = await db.update(students).set(updates).where(eq(students.id, id)).returning();
+  return updated;
+}
+
 
   async deleteStudent(id: string): Promise<boolean> {
     const result = await db
@@ -445,17 +505,21 @@ async markStudentsAsTrained(studentIds: string[]): Promise<void> {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  async getClassStudents(classId: string): Promise<Student[]> {
-    const enrollments = await db
-      .select({
-        student: students,
-      })
-      .from(classEnrollments)
-      .innerJoin(students, eq(classEnrollments.studentId, students.id))
-      .where(eq(classEnrollments.classId, classId));
+async getClassStudents(classId: string): Promise<(Student & { user: User })[]> {
+  const enrollments = await db
+    .select({ student: students, user: users })
+    .from(classEnrollments)
+    .innerJoin(students, eq(classEnrollments.studentId, students.id))
+    .innerJoin(users, eq(students.userId, users.id))
+    .where(eq(classEnrollments.classId, classId));
 
-    return enrollments.map(e => e.student);
-  }
+  return enrollments.map(r => ({
+    ...r.student,
+    user: r.user,
+    isTrainingComplete: r.student.isTrainingComplete ?? false,
+  }));
+}
+
 
   async enrollStudent(classId: string, studentId: string): Promise<ClassEnrollment> {
     const [enrollment] = await db
@@ -541,7 +605,31 @@ async markStudentsAsTrained(studentIds: string[]): Promise<void> {
       .from(recognitionResults)
       .where(eq(recognitionResults.sessionId, sessionId));
   }
+async getAttendanceSessionsByTeacher(userId: string): Promise<AttendanceSession[]> {
+  const teacher = await db
+    .select()
+    .from(teachers)
+    .where(eq(teachers.userId, userId))
+    .limit(1);
 
+  if (!teacher[0]) return [];
+
+  const teacherClasses = await db
+    .select()
+    .from(classes)
+    .where(eq(classes.teacherId, teacher[0].id));
+
+  if (!teacherClasses.length) return [];
+
+  const classIds = teacherClasses.map(c => c.id);
+
+  const sessions = await db
+    .select()
+    .from(attendanceSessions)
+    .where(inArray(attendanceSessions.classId, classIds));
+
+  return sessions;
+}
   // ---------------- AUTH ----------------
   async validateCredentials(username: string, password: string, role: string): Promise<User | null> {
     const user = await this.getUserByUsername(username);

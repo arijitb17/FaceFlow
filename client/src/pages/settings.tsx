@@ -32,6 +32,11 @@ type UserType = {
   role: string;
   email?: string | null;
   isActive: boolean;
+  student?: {
+    program?: string;
+    yearLevel?: number;
+    rollNo?: string;
+  };
 };
 
 export default function Settings() {
@@ -40,7 +45,13 @@ export default function Settings() {
   const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Profile form state
-  const [profileForm, setProfileForm] = useState<{ name: string; email?: string }>({ name: "", email: "" });
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    email: "",
+    program: "",
+    yearLevel: 1,
+    rollNo: ""
+  });
 
   // Password form state
   const [passwordForm, setPasswordForm] = useState({
@@ -77,14 +88,18 @@ export default function Settings() {
 
   // Load settings from localStorage on mount
   useEffect(() => {
-    const savedNotifications = localStorage.getItem("notificationSettings");
-    if (savedNotifications) {
-      setNotificationSettings(JSON.parse(savedNotifications));
-    }
+    try {
+      const savedNotifications = localStorage.getItem("notificationSettings");
+      if (savedNotifications) {
+        setNotificationSettings(JSON.parse(savedNotifications));
+      }
 
-    const savedSystem = localStorage.getItem("systemSettings");
-    if (savedSystem) {
-      setSystemSettings(JSON.parse(savedSystem));
+      const savedSystem = localStorage.getItem("systemSettings");
+      if (savedSystem) {
+        setSystemSettings(JSON.parse(savedSystem));
+      }
+    } catch (error) {
+      console.error("Error loading settings from localStorage:", error);
     }
   }, []);
 
@@ -93,7 +108,10 @@ export default function Settings() {
     if (currentUser) {
       setProfileForm({
         name: currentUser.name || "",
-        email: currentUser.email || ""
+        email: currentUser.email || "",
+        program: currentUser.student?.program || "",
+        yearLevel: currentUser.student?.yearLevel || 1,
+        rollNo: currentUser.student?.rollNo || ""
       });
     }
   }, [currentUser]);
@@ -101,6 +119,10 @@ export default function Settings() {
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: typeof passwordForm) => {
       const response = await apiRequest("PUT", "/api/auth/change-password", data);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update password");
+      }
       return await response.json();
     },
     onSuccess: () => {
@@ -116,10 +138,14 @@ export default function Settings() {
     },
   });
 
-  const updateProfileMutation = useMutation<unknown, Error, { name: string; email?: string }>({
+  const updateProfileMutation = useMutation<unknown, Error, typeof profileForm>({
     mutationFn: async (profile) => {
-      const res = await apiRequest("PUT", "/api/profile", profile);
-      return res.json();
+      const response = await apiRequest("PUT", "/api/profile", profile);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to update profile");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -128,10 +154,10 @@ export default function Settings() {
         description: "Your profile has been updated successfully"
       });
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: "Update Failed",
-        description: "Failed to update profile",
+        description: error.message || "Failed to update profile",
         variant: "destructive"
       });
     },
@@ -162,14 +188,41 @@ export default function Settings() {
     updatePasswordMutation.mutate(passwordForm);
   };
 
+  const handleProfileUpdate = () => {
+    if (!profileForm.name.trim()) {
+      return toast({
+        title: "Missing Information",
+        description: "Name is required",
+        variant: "destructive"
+      });
+    }
+    updateProfileMutation.mutate(profileForm);
+  };
+
   const saveNotificationSettings = () => {
-    localStorage.setItem("notificationSettings", JSON.stringify(notificationSettings));
-    toast({ title: "Settings Saved", description: "Notification preferences have been updated" });
+    try {
+      localStorage.setItem("notificationSettings", JSON.stringify(notificationSettings));
+      toast({ title: "Settings Saved", description: "Notification preferences have been updated" });
+    } catch (error) {
+      toast({ 
+        title: "Save Failed", 
+        description: "Unable to save notification settings", 
+        variant: "destructive" 
+      });
+    }
   };
 
   const saveSystemSettings = () => {
-    localStorage.setItem("systemSettings", JSON.stringify(systemSettings));
-    toast({ title: "Settings Saved", description: "System preferences have been updated" });
+    try {
+      localStorage.setItem("systemSettings", JSON.stringify(systemSettings));
+      toast({ title: "Settings Saved", description: "System preferences have been updated" });
+    } catch (error) {
+      toast({ 
+        title: "Save Failed", 
+        description: "Unable to save system settings", 
+        variant: "destructive" 
+      });
+    }
   };
 
   return (
@@ -197,6 +250,7 @@ export default function Settings() {
                       id="name"
                       value={profileForm.name}
                       onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                      placeholder="Enter your full name"
                     />
                   </div>
                   <div>
@@ -208,17 +262,57 @@ export default function Settings() {
                     <Input value={currentUser?.role || ""} disabled className="bg-gray-50" />
                   </div>
                   <div>
-                    <Label htmlFor="email">Email (Optional)</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
                       value={profileForm.email}
                       onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      placeholder="Enter your email"
                     />
                   </div>
+                  {currentUser?.role === "student" && (
+                    <>
+                      <div>
+                        <Label htmlFor="program">Program</Label>
+                        <Input
+                          id="program"
+                          value={profileForm.program}
+                          onChange={(e) => setProfileForm({ ...profileForm, program: e.target.value })}
+                          placeholder="e.g., Computer Science"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="yearLevel">Year Level</Label>
+                        <Select 
+                          value={profileForm.yearLevel.toString()} 
+                          onValueChange={(value) => setProfileForm({ ...profileForm, yearLevel: parseInt(value) })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1st Year</SelectItem>
+                            <SelectItem value="2">2nd Year</SelectItem>
+                            <SelectItem value="3">3rd Year</SelectItem>
+                            <SelectItem value="4">4th Year</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="rollNo">Roll Number</Label>
+                        <Input
+                          id="rollNo"
+                          value={profileForm.rollNo}
+                          onChange={(e) => setProfileForm({ ...profileForm, rollNo: e.target.value })}
+                          placeholder="Enter your roll number"
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
                 <Button
-                  onClick={() => updateProfileMutation.mutate(profileForm)}
+                  onClick={handleProfileUpdate}
                   disabled={updateProfileMutation.isPending}
                 >
                   <Save className="mr-2 h-4 w-4" />
@@ -467,33 +561,35 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            {/* Database Settings */}
-            <Card className="shadow-sm border border-gray-200">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2" data-testid="database-settings-title">
-                  <Database className="h-5 w-5" />
-                  <span>Data Management</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <Button variant="outline" data-testid="button-export-data">
-                    Export All Data
-                  </Button>
-                  <Button variant="outline" data-testid="button-clear-old-sessions">
-                    Clear Old Sessions
-                  </Button>
-                  <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400" data-testid="button-reset-system">
-                    Reset System
-                  </Button>
-                </div>
-                <div className="text-sm text-gray-600">
-                  <p><strong>Export All Data:</strong> Download all attendance records and student data</p>
-                  <p><strong>Clear Old Sessions:</strong> Remove attendance sessions older than 6 months</p>
-                  <p><strong>Reset System:</strong> Clear all data and reset to factory defaults</p>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Database Settings - Only for admins */}
+            {currentUser?.role === "admin" && (
+              <Card className="shadow-sm border border-gray-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2" data-testid="database-settings-title">
+                    <Database className="h-5 w-5" />
+                    <span>Data Management</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Button variant="outline" data-testid="button-export-data">
+                      Export All Data
+                    </Button>
+                    <Button variant="outline" data-testid="button-clear-old-sessions">
+                      Clear Old Sessions
+                    </Button>
+                    <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400" data-testid="button-reset-system">
+                      Reset System
+                    </Button>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <p><strong>Export All Data:</strong> Download all attendance records and student data</p>
+                    <p><strong>Clear Old Sessions:</strong> Remove attendance sessions older than 6 months</p>
+                    <p><strong>Reset System:</strong> Clear all data and reset to factory defaults</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             
           </div>
         </main>
