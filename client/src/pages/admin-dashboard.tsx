@@ -6,7 +6,6 @@ import Sidebar from "@/components/admin/sidebar";
 import Header from "@/components/admin/header";
 import StatsCards from "@/components/admin/stats-cards";
 import RecentUsers from "@/components/admin/recent-users";
-import QuickActions from "@/components/admin/quick-actions";
 import CreateTeacherModal from "@/components/admin/create-teacher-modal";
 import CreateStudentModal from "@/components/admin/create-student-modal";
 import CreateAdminModal from "@/components/admin/create-admin-modal";
@@ -138,17 +137,12 @@ export default function AdminDashboard() {
 
         <main className="flex-1 overflow-y-auto p-6">
           <StatsCards stats={dashboardStats} />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="gap-6">
             <RecentUsers
               users={users}
               onViewAll={() => setLocation("/admin/users")}
             />
-            <QuickActions
-              onBulkImport={() => handleQuickAction("bulk-import")}
-              onSendCredentials={() => handleQuickAction("send-credentials")}
-              onGenerateReport={() => handleQuickAction("generate-report")}
-              onSystemSettings={() => handleQuickAction("system-settings")}
-            />
+            
           </div>
         </main>
       </div>

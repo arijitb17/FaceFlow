@@ -7,26 +7,28 @@ import { z } from "zod";
 
 export function registerAttendanceRoutes(app: Express) {
   // -------------------- Helper --------------------
-  async function mapStudentsWithAttendance(sessionId: string, classId?: string) {
-    let students: (Student & { user: User })[] = [];
-    if (classId) {
-      // Use getClassStudents instead of getStudentsByTeacherViaClasses
-      students = await storage.getClassStudents(classId);
-    }
-
-    const attendanceRecords = await storage.getAttendanceRecords(sessionId);
-
-    return students.map((s) => {
-      const record = attendanceRecords.find((r) => r.studentId === s.id);
-      return {
-        id: s.id,
-        studentId: s.studentId || s.id, // Use actual studentId field if available
-        name: s.user?.name || s.name || "Unknown",
-        recognized: record?.isPresent ?? false,
-        confidence: record?.confidence ?? 0,
-      };
-    });
+async function mapStudentsWithAttendance(sessionId: string, classId?: string) {
+  let students: (Student & { user: User })[] = [];
+  if (classId) {
+    students = await storage.getClassStudents(classId);
   }
+
+  const attendanceRecords = await storage.getAttendanceRecords(sessionId);
+
+  return students.map((s) => {
+    const record = attendanceRecords.find(r => r.studentId === s.id); // match DB PK
+
+    return {
+      id: s.id,              // DB primary key
+      studentId: s.studentId, // admission/roll number for frontend/logs
+      name: s.user?.name || s.name || "Unknown",
+      recognized: record?.isPresent ?? false,
+      confidence: record?.confidence ?? 0,
+    };
+  });
+}
+
+
 
   // -------------------- Routes --------------------
 
@@ -39,13 +41,12 @@ export function registerAttendanceRoutes(app: Express) {
         sessions.map(async (session) => {
           const students = await mapStudentsWithAttendance(session.id, session.classId ?? undefined);
           return {
-            ...session, // Include all original session properties
-            students // Add the students array
+            ...session,
+            students,
           };
         })
       );
 
-      console.log("Sessions with students:", JSON.stringify(sessionsWithStudents[0], null, 2)); // DEBUG
       res.json(sessionsWithStudents);
     } catch (error) {
       console.error("Error fetching attendance sessions:", error);
@@ -85,7 +86,7 @@ export function registerAttendanceRoutes(app: Express) {
     }
   });
 
-  // Get attendance records for a session (just raw records)
+  // Get attendance records for a session (raw records)
   app.get("/api/attendance-sessions/:id/records", async (req: Request, res: Response) => {
     try {
       const records = await storage.getAttendanceRecords(req.params.id);
@@ -96,7 +97,7 @@ export function registerAttendanceRoutes(app: Express) {
     }
   });
 
-  // Detailed sessions for frontend summary (always include mapped students)
+  // Detailed sessions for frontend summary
   app.get("/api/attendance-sessions/detailed", async (_req: Request, res: Response) => {
     try {
       const sessions = await storage.getAttendanceSessions();

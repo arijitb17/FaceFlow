@@ -17,7 +17,7 @@ interface AttendanceRecord {
 }
 
 interface AuthUser {
-  userId: string;  // ✅ match backend
+  userId: string;
   username: string;
   name: string;
   role: string;
@@ -32,28 +32,15 @@ export default function StudentDashboard() {
   const queryClient = useQueryClient();
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  
-  // Calendar month state
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return { year: today.getFullYear(), month: today.getMonth() };
   });
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(({ year, month }) => {
-      if (month === 0) return { year: year - 1, month: 11 };
-      return { year, month: month - 1 };
-    });
-  };
+  const handlePrevMonth = () => setCurrentMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 });
+  const handleNextMonth = () => setCurrentMonth(({ year, month }) => month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 });
 
-  const handleNextMonth = () => {
-    setCurrentMonth(({ year, month }) => {
-      if (month === 11) return { year: year + 1, month: 0 };
-      return { year, month: month + 1 };
-    });
-  };
-
-  // ---- Fetch logged-in student
+  // ---- Fetch student info
   const { data: student } = useQuery<AuthUser>({
     queryKey: ["/api/auth/me"],
     queryFn: async () => {
@@ -86,6 +73,7 @@ export default function StudentDashboard() {
     enabled: !!studentId && !!token,
   });
 
+
   // ---- Upload student photos
   const uploadPhotosMutation = useMutation({
     mutationFn: async (files: File[]) => {
@@ -105,28 +93,21 @@ export default function StudentDashboard() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setSelectedFiles([]);
     },
-    onError: (err: any) => {
-      console.error("Upload failed:", err?.message || err);
-    },
+    onError: (err: any) => console.error("Upload failed:", err?.message || err),
   });
 
   const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setSelectedFiles(Array.from(e.target.files));
   };
-
-  const handleUpload = () => {
-    if (selectedFiles.length) uploadPhotosMutation.mutate(selectedFiles);
-  };
+  const handleUpload = () => selectedFiles.length && uploadPhotosMutation.mutate(selectedFiles);
 
   // ---- Attendance stats
   const totalSessions = attendanceRecords.length;
   const attended = attendanceRecords.filter(r => r.isPresent).length;
   const attendancePercentage = totalSessions ? Math.round((attended / totalSessions) * 100) : 0;
 
-  // ---- Logout
   const handleLogout = () => {
     localStorage.removeItem("authToken");
     localStorage.removeItem("userRole");
@@ -137,11 +118,7 @@ export default function StudentDashboard() {
   const { year, month } = currentMonth;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
-
-  const calendarDays: (number | null)[] = [
-    ...Array(firstDayOfWeek).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
+  const calendarDays: (number | null)[] = [...Array(firstDayOfWeek).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -163,7 +140,7 @@ export default function StudentDashboard() {
           <Card>
             <CardContent className="p-6">
               <p className="text-gray-600 text-sm">Classes Enrolled</p>
-              <p className="text-3xl font-bold">{classes.length}</p>
+              <p className="text-3xl font-bold">{Array.from(new Set(attendanceRecords.map(r => r.classId))).length}</p>
             </CardContent>
           </Card>
           <Card>
@@ -176,81 +153,46 @@ export default function StudentDashboard() {
 
         {/* Upload Photos */}
         <Card>
-          <CardHeader>
-            <CardTitle>Upload Photos for Model Training</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Upload Photos for Model Training</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <input type="file" accept="image/*" multiple onChange={handleFilesChange} />
-              <Button
-                disabled={selectedFiles.length === 0 || uploadPhotosMutation.isPending}
-                onClick={handleUpload}
-              >
+              <Button disabled={selectedFiles.length === 0 || uploadPhotosMutation.isPending} onClick={handleUpload}>
                 <Upload className="mr-2 h-4 w-4" /> Upload
               </Button>
-
               {uploadPhotosMutation.isPending && <p>Uploading...</p>}
-              {uploadPhotosMutation.isError && (
-                <p className="text-red-500 mt-2">{(uploadPhotosMutation.error as Error)?.message}</p>
-              )}
-              {uploadPhotosMutation.isSuccess && (
-                <p className="text-green-500 mt-2">Upload successful!</p>
-              )}
+              {uploadPhotosMutation.isError && <p className="text-red-500 mt-2">{(uploadPhotosMutation.error as Error)?.message}</p>}
+              {uploadPhotosMutation.isSuccess && <p className="text-green-500 mt-2">Upload successful!</p>}
             </div>
           </CardContent>
         </Card>
-
         {/* Attendance Calendar */}
         <Card>
-          <CardHeader>
-            <CardTitle>Attendance Calendar</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Attendance Calendar</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {/* Month navigation */}
             <div className="flex justify-between items-center mb-2">
               <Button onClick={handlePrevMonth}>{"< Prev"}</Button>
-              <h2 className="font-semibold text-lg">
-                {new Date(year, month).toLocaleString("default", { month: "long", year: "numeric" })}
-              </h2>
+              <h2 className="font-semibold text-lg">{new Date(year, month).toLocaleString("default", { month: "long", year: "numeric" })}</h2>
               <Button onClick={handleNextMonth}>{"Next >"}</Button>
             </div>
 
             <div className="grid grid-cols-7 gap-1 text-center text-xs lg:text-sm">
-              {/* Weekday headers */}
-              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
-                <div key={d} className="font-semibold text-gray-600 p-1">{d}</div>
-              ))}
-
-              {/* Days */}
+              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d} className="font-semibold text-gray-600 p-1">{d}</div>)}
               {calendarDays.map((day, idx) => {
                 if (!day) return <div key={idx}></div>;
-
                 const recordsForDay = attendanceRecords.filter(r => {
                   const date = new Date(r.date);
-                  return date.getDate() === day &&
-                         date.getMonth() === month &&
-                         date.getFullYear() === year;
+                  return date.getDate() === day && date.getMonth() === month && date.getFullYear() === year;
                 });
-
                 return (
                   <div key={idx} className="p-1 rounded border border-gray-200 min-h-[3rem] flex flex-col justify-start gap-1">
                     <div className="text-xs font-medium mb-1">{day}</div>
                     <div className="flex flex-wrap gap-0.5 max-h-12 overflow-y-auto">
-                      {recordsForDay.length > 0 ? (
-                        recordsForDay.map((r, i) => (
-                          <div
-                            key={i}
-                            className={`text-[10px] px-1 py-0.5 rounded ${
-                              r.isPresent ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"
-                            }`}
-                            title={`${r.className}: ${r.isPresent ? "Present" : "Absent"}`}
-                          >
-                            {r.classCode || r.className}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-gray-300 text-[10px]">No class</div>
-                      )}
+                      {recordsForDay.length > 0 ? recordsForDay.map((r, i) => (
+                        <div key={i} className={`text-[10px] px-1 py-0.5 rounded ${r.isPresent ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`} title={`${r.className}: ${r.isPresent ? "Present" : "Absent"}`}>
+                          {r.classCode || r.className}
+                        </div>
+                      )) : <div className="text-gray-300 text-[10px]">No class</div>}
                     </div>
                   </div>
                 );
@@ -259,18 +201,9 @@ export default function StudentDashboard() {
 
             {/* Legend */}
             <div className="flex items-center justify-center space-x-4 mt-4 text-sm">
-              <div className="flex items-center space-x-1">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <span>Present</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                <span>Absent</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-4 h-4 bg-gray-200 rounded"></div>
-                <span>No Class</span>
-              </div>
+              <div className="flex items-center space-x-1"><div className="w-4 h-4 bg-green-500 rounded"></div><span>Present</span></div>
+              <div className="flex items-center space-x-1"><div className="w-4 h-4 bg-red-500 rounded"></div><span>Absent</span></div>
+              <div className="flex items-center space-x-1"><div className="w-4 h-4 bg-gray-200 rounded"></div><span>No Class</span></div>
             </div>
           </CardContent>
         </Card>

@@ -121,32 +121,47 @@ export class PgStorage implements IStorage {
       console.error("Error initializing default data:", error);
     }
   }
-async updateProfile(userId: string, updates: Partial<User> & Partial<Student>) {
-  let updatedUser: User | undefined;
-  let updatedStudent: Student | undefined;
-
-  // Update users table (only valid columns)
+async updateProfile(userId: string, updates: Partial<User & Student>): Promise<UserWithProfile | null> {
   const userUpdates: Partial<User> = {};
-  if (updates.name) userUpdates.name = updates.name;
-  if (updates.email) userUpdates.email = updates.email;
+  if (updates.name !== undefined) userUpdates.name = updates.name;
+  if (updates.email !== undefined) userUpdates.email = updates.email;
+  if (updates.password !== undefined) userUpdates.password = updates.password;
+  if (updates.isActive !== undefined) userUpdates.isActive = updates.isActive;
+
+  let user: User | null = null;
+
   if (Object.keys(userUpdates).length > 0) {
-    [updatedUser] = await db.update(users).set(userUpdates).where(eq(users.id, userId)).returning();
+    const updatedUsers = await db
+      .update(users)
+      .set(userUpdates)
+      .where(eq(users.id, userId))
+      .returning();
+
+    user = updatedUsers[0] ?? null;
+  } else {
+    user = await this.getUser(userId) ?? null;
   }
 
-  // Update students table (only valid columns)
-  const studentUpdates: Partial<Student> = {};
-  if (updates.program) studentUpdates.program = updates.program;
-  if (updates.yearLevel) studentUpdates.yearLevel = updates.yearLevel;
-  if (updates.rollNo) studentUpdates.rollNo = updates.rollNo;
-  if (Object.keys(studentUpdates).length > 0) {
-    [updatedStudent] = await db.update(students).set(studentUpdates).where(eq(students.userId, userId)).returning();
+  if (!user) return null;
+
+  if (user.role === "student") {
+    const studentUpdates: Partial<Student> = {};
+    if (updates.program !== undefined) studentUpdates.program = updates.program;
+    if (updates.yearLevel !== undefined) studentUpdates.yearLevel = updates.yearLevel;
+    if (updates.rollNo !== undefined) studentUpdates.rollNo = updates.rollNo;
+
+    if (Object.keys(studentUpdates).length > 0) {
+      await db
+        .update(students)
+        .set(studentUpdates)
+        .where(eq(students.userId, userId));
+    }
   }
 
-  return {
-    ...updatedUser,
-    student: updatedStudent,
-  };
+  return (await this.getUserWithProfile(userId)) ?? null;
+
 }
+
 
   // ---------------- USERS ----------------
   async getUser(id: string): Promise<User | undefined> {
@@ -645,6 +660,14 @@ async getAttendanceSessionsByTeacher(userId: string): Promise<AttendanceSession[
       .set({ lastLogin: new Date() })
       .where(eq(users.id, userId));
   }
+  async deleteAttendanceSession(id: string): Promise<boolean> {
+  const result = await db
+    .delete(attendanceSessions)
+    .where(eq(attendanceSessions.id, id));
+
+  return result.rowCount ? result.rowCount > 0 : false;
+}
+
 }
 
 export const storage = new PgStorage();

@@ -11,29 +11,48 @@ export function registerDashboardRoutes(app: Express) {
       const classes = await storage.getClasses();
       const sessions = await storage.getAttendanceSessions();
 
-      const today = new Date();
-      const todaySessions = sessions.filter(session => 
-        session.date && new Date(session.date).toDateString() === today.toDateString()
+      const today = new Date().toDateString();
+
+      // Sessions for today
+      const todaySessions = sessions.filter(
+        (session) => session.date && new Date(session.date).toDateString() === today
       );
 
+      // Calculate average students recognized today
       const todayAttendance = todaySessions.length
-        ? Math.round(todaySessions.reduce((acc, s) => acc + (s.totalStudentsRecognized || 0), 0) / todaySessions.length)
+        ? Math.round(
+            todaySessions.reduce(
+              (sum, session) => sum + (session.totalStudentsRecognized ?? 0),
+              0
+            ) / todaySessions.length
+          )
+        : 0;
+
+      // Calculate overall accuracy
+      const accuracy = sessions.length
+        ? Math.round(
+            (sessions.reduce(
+              (sum, session) => sum + (session.averageConfidence ?? 0),
+              0
+            ) /
+              sessions.length) *
+              100
+          )
         : 0;
 
       const stats = {
         totalStudents: students.length,
         totalTeachers: teachers.length,
         totalClasses: classes.length,
-        activeClasses: classes.filter(c => c.isActive).length,
+        activeClasses: classes.filter((c) => c.isActive).length,
         todayAttendance: `${todayAttendance}%`,
         todayClassesCount: todaySessions.length,
-        accuracy: sessions.length
-          ? `${Math.round(sessions.reduce((acc, s) => acc + (s.averageConfidence || 0), 0) / sessions.length * 100)}%`
-          : "0%",
-        // Additional stats for reports
+        accuracy: `${accuracy}%`,
         totalSessions: sessions.length,
-        completedSessions: sessions.filter(s => s.status === 'completed').length,
-        avgStudentsPerClass: classes.length ? Math.round(students.length / classes.length) : 0
+        completedSessions: sessions.filter((s) => s.status === "completed").length,
+        avgStudentsPerClass: classes.length
+          ? Math.round(students.length / classes.length)
+          : 0,
       };
 
       res.json(stats);

@@ -40,10 +40,23 @@ export default function LiveAttendance() {
     progress: 0,
     message: "Ready",
   });
-
+  const [userName, setUserName] = useState("Guest");
   // Selected class for attendance
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
-
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (!res.ok) throw new Error("Failed to fetch user");
+        const user = await res.json();
+        setUserName(user.name || "Guest");
+      } catch (err) {
+        console.error(err);
+        setUserName("Guest");
+      }
+    }
+    fetchUser();
+  }, []);
   // Fetch classes assigned to the logged-in teacher
   const { data: classes = [] } = useQuery<Class[]>({
     queryKey: ["teacher-classes"],
@@ -123,11 +136,14 @@ export default function LiveAttendance() {
     <div className="flex h-screen">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
-        <Header
-          title="Live Attendance"
-          subtitle="Capture and process classroom attendance in real-time"
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
+       <Header
+                 title="Dashboard"
+                 subtitle="Monitor attendance and manage your classes"
+                 showStartAttendance
+                 onStartAttendance={() => {}}
+                 onMenuClick={() => setIsSidebarOpen(true)}
+                 userName={userName}
+               />
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">

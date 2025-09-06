@@ -1,214 +1,342 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+// AdminSettings.tsx
+"use client";
+
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Settings as SettingsIcon, Save, RefreshCw } from "lucide-react";
+import { RefreshCw, Save, Key, Eye, EyeOff } from "lucide-react";
 import Sidebar from "@/components/admin/sidebar";
 
-interface Setting {
+const apiRequest = async (method: string, url: string, body?: any) => {
+  const token =
+    localStorage.getItem("authToken") ??
+    localStorage.getItem("auth_token") ??
+    localStorage.getItem("token") ??
+    localStorage.getItem("jwt");
+
+  const options: RequestInit = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  };
+
+  console.log("➡️ API Request", method, url, body); // DEBUG
+
+  const res = await fetch(url, options);
+  const text = await res.text();
+
+  let data;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  console.log("⬅️ API Response", res.status, data); // DEBUG
+
+  if (!res.ok) {
+    const message =
+      data && (data.message || data.error)
+        ? data.message || data.error
+        : `HTTP ${res.status}`;
+    const err: any = new Error(message);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+
+  return data;
+};
+
+interface AdminProfile {
   id: string;
-  key: string;
-  value: string;
-  description: string;
-  category: string;
-  updatedAt: string;
+  username: string;
+  name: string;
+  role: string;
+  email: string;
+  isActive: boolean;
+  forcePasswordChange: boolean;
 }
 
 export default function AdminSettings() {
   const { toast } = useToast();
-  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
 
-  // ✅ useQuery typed
-  const { data: settings = [], isLoading } = useQuery<Setting[]>({
-    queryKey: ["/api/settings"],
+  const [editValues, setEditValues] = useState({ name: "", email: "" });
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
   });
 
-  const updateSettingMutation = useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const token = localStorage.getItem("auth_token"); // ✅ fixed
-      const response = await fetch(`/api/settings/${key}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ value }),
-      });
+  // ✅ Fetch profile
+  const { data: profile, isLoading } = useQuery<AdminProfile>({
+    queryKey: ["me"],
+    queryFn: () => apiRequest("GET", "/api/auth/me"),
+  });
 
-      if (!response.ok) {
-        throw new Error("Failed to update setting");
+  useEffect(() => {
+    if (profile) {
+      console.log("📄 Loaded profile", profile); // DEBUG
+      setEditValues({
+        name: profile.name ?? "",
+        email: profile.email ?? "",
+      });
+    }
+  }, [profile]);
+
+  // ✅ Update profile - Fixed to send correct field names
+  const updateProfile = useMutation({
+    mutationFn: async () => {
+      const payload: any = {};
+      
+      // Only send fields that have actually changed
+      if (editValues.name !== profile?.name && editValues.name.trim()) {
+        payload.name = editValues.name;
       }
-      return response.json();
+      if (editValues.email !== profile?.email && editValues.email.trim()) {
+        payload.email = editValues.email;
+      }
+
+      // Don't send empty payload
+      if (Object.keys(payload).length === 0) {
+        throw new Error("No changes to save");
+      }
+
+      console.log("📤 Sending profile update", payload); // DEBUG
+      return await apiRequest("PATCH", "/api/auth/me", payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
-      toast({ title: "Setting updated successfully" });
-      setEditValues({});
+    onSuccess: (data) => {
+      console.log("✅ Update success:", data); // DEBUG
+      toast({ 
+        title: "Success", 
+        description: "Profile updated successfully" 
+      });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
     },
-    onError: () => {
+    onError: (err: any) => {
+      console.error("❌ Update error:", err); // DEBUG
       toast({
         title: "Error",
-        description: "Failed to update setting",
+        description: err.message || "Failed to update profile",
         variant: "destructive",
       });
     },
   });
 
-  const handleSave = (setting: Setting) => {
-    const newValue = editValues[setting.key] ?? setting.value;
-    updateSettingMutation.mutate({ key: setting.key, value: newValue });
-  };
+  // ✅ Change password - Fixed field names
+  const changePassword = useMutation({
+    mutationFn: async () => {
+      if (!passwordData.currentPassword || !passwordData.newPassword) {
+        throw new Error("Please fill in all password fields");
+      }
 
-  const handleInputChange = (key: string, value: string) => {
-    setEditValues((prev) => ({ ...prev, [key]: value }));
-  };
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        throw new Error("New passwords do not match");
+      }
 
-  // ✅ Group by category
-  const groupedSettings = useMemo(
-    () =>
-      (settings ?? []).reduce((acc: Record<string, Setting[]>, setting) => {
-        if (!acc[setting.category]) acc[setting.category] = [];
-        acc[setting.category].push(setting);
-        return acc;
-      }, {}),
-    [settings]
-  );
+      if (passwordData.newPassword.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+      }
 
-  const renderInput = (setting: Setting) => {
-    const currentValue = editValues[setting.key] ?? setting.value;
+      const payload = {
+        currentPassword: passwordData.currentPassword,
+        password: passwordData.newPassword, // Backend expects 'password', not 'newPassword'
+      };
+      
+      console.log("📤 Sending password change"); // DEBUG (don't log passwords)
+      return await apiRequest("PATCH", "/api/auth/me", payload);
+    },
+    onSuccess: (data) => {
+      console.log("✅ Password change success"); // DEBUG
+      toast({ 
+        title: "Success", 
+        description: "Password changed successfully" 
+      });
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+    },
+    onError: (err: any) => {
+      console.error("❌ Password change error:", err); // DEBUG
+      toast({
+        title: "Error",
+        description: err.message || "Failed to change password",
+        variant: "destructive",
+      });
+    },
+  });
 
-    // ✅ Boolean toggle
-    if (["true", "false"].includes(setting.value.toLowerCase())) {
-      return (
-        <Switch
-          checked={currentValue === "true"}
-          onCheckedChange={(checked) =>
-            handleInputChange(setting.key, String(checked))
-          }
-        />
-      );
-    }
+  // Validation for save button
+  const hasProfileChanges = 
+    (editValues.name !== profile?.name && editValues.name.trim()) ||
+    (editValues.email !== profile?.email && editValues.email.trim());
 
-    // ✅ Long text
-    if (setting.key.includes("description") || setting.key.includes("notes")) {
-      return (
-        <Textarea
-          value={currentValue}
-          onChange={(e) => handleInputChange(setting.key, e.target.value)}
-          className="w-full"
-          rows={2}
-        />
-      );
-    }
-
-    // ✅ Default text/number input
-    return (
-      <Input
-        type={/^\d+$/.test(setting.value) ? "number" : "text"}
-        value={currentValue}
-        onChange={(e) => handleInputChange(setting.key, e.target.value)}
-        className="w-full"
-      />
-    );
-  };
+  const isPasswordValid = 
+    passwordData.currentPassword &&
+    passwordData.newPassword &&
+    passwordData.confirmPassword &&
+    passwordData.newPassword === passwordData.confirmPassword &&
+    passwordData.newPassword.length >= 8;
 
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center space-x-3">
-            <SettingsIcon className="w-6 h-6 text-slate-600" />
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900">
-                System Settings
-              </h1>
-              <p className="text-slate-600">
-                Configure system preferences and behavior
-              </p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-semibold">Admin Settings</h1>
+          <p className="text-slate-600">Update your profile and password</p>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedSettings).map(
-                ([category, categorySettings]) => (
-                  <Card key={category}>
-                    <CardHeader>
-                      <CardTitle className="capitalize text-lg">
-                        {category} Settings
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {categorySettings.map((setting) => {
-                        const currentValue =
-                          editValues[setting.key] ?? setting.value;
-                        const isChanged = currentValue !== setting.value;
+        <main className="flex-1 overflow-auto p-6 space-y-6">
+          {/* ✅ Profile */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={editValues.name}
+                  onChange={(e) =>
+                    setEditValues((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                  disabled={isLoading}
+                  placeholder="Your full name"
+                />
+              </div>
 
-                        return (
-                          <div
-                            key={setting.key}
-                            className="border-b border-slate-100 pb-4 last:border-b-0"
-                          >
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                              <div>
-                                <Label className="text-sm font-medium text-slate-700">
-                                  {setting.key
-                                    .replace(/_/g, " ")
-                                    .replace(/\b\w/g, (l) => l.toUpperCase())}
-                                </Label>
-                                <p className="text-xs text-slate-500 mt-1">
-                                  {setting.description}
-                                </p>
-                              </div>
-                              <div>{renderInput(setting)}</div>
-                              <div className="flex items-center">
-                                <Button
-                                  onClick={() => handleSave(setting)}
-                                  disabled={
-                                    updateSettingMutation.isPending || !isChanged
-                                  }
-                                  size="sm"
-                                >
-                                  {updateSettingMutation.isPending ? (
-                                    <RefreshCw className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <Save className="w-4 h-4 mr-1" />
-                                  )}
-                                  Save
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </CardContent>
-                  </Card>
-                )
-              )}
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editValues.email}
+                  onChange={(e) =>
+                    setEditValues((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  disabled={isLoading}
+                  placeholder="you@example.com"
+                />
+              </div>
 
-              {Object.keys(groupedSettings).length === 0 && (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <SettingsIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">No settings configured</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
+              <div className="text-sm text-slate-600">
+                <strong>Username:</strong> {profile?.username}
+              </div>
+
+              <Button
+                onClick={() => updateProfile.mutate()}
+                disabled={updateProfile.isPending || !hasProfileChanges || isLoading}
+              >
+                {updateProfile.isPending ? (
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Save Changes
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* ✅ Password */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { key: "current", label: "Current Password" },
+                { key: "new", label: "New Password" },
+                { key: "confirm", label: "Confirm New Password" }
+              ].map((field) => (
+                <div key={field.key}>
+                  <Label htmlFor={`password-${field.key}`}>
+                    {field.label}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id={`password-${field.key}`}
+                      type={
+                        showPasswords[field.key as keyof typeof showPasswords]
+                          ? "text"
+                          : "password"
+                      }
+                      value={passwordData[`${field.key}Password` as keyof typeof passwordData]}
+                      onChange={(e) =>
+                        setPasswordData((prev) => ({
+                          ...prev,
+                          [`${field.key}Password`]: e.target.value,
+                        }))
+                      }
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() =>
+                        setShowPasswords((prev) => ({
+                          ...prev,
+                          [field.key]: !prev[field.key as keyof typeof prev],
+                        }))
+                      }
+                    >
+                      {showPasswords[field.key as keyof typeof showPasswords] ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Password requirements */}
+              <div className="text-sm text-slate-600">
+                <p>Password requirements:</p>
+                <ul className="list-disc list-inside ml-2">
+                  <li>At least 8 characters long</li>
+                  <li>New password must match confirmation</li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={() => changePassword.mutate()}
+                disabled={changePassword.isPending || !isPasswordValid}
+              >
+                {changePassword.isPending ? (
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Key className="w-4 h-4 mr-2" />
+                )}
+                Change Password
+              </Button>
+            </CardContent>
+          </Card>
         </main>
       </div>
     </div>

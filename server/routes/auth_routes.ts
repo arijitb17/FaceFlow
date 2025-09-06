@@ -123,4 +123,58 @@ export function registerAuthRoutes(app: Express) {
       res.status(500).json({ message: "Internal server error" });
     }
   });
+app.patch("/api/auth/me", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { name, email, password, currentPassword, program, yearLevel, rollNo } = req.body;
+
+    // --- user fields ---
+    const userUpdates: any = {};
+    if (email !== undefined) userUpdates.email = email;
+    if (name !== undefined) userUpdates.name = name;
+
+    if (password !== undefined) {
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      if (currentPassword) {
+        const ok = await bcrypt.compare(currentPassword, user.password);
+        if (!ok) return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      userUpdates.password = await bcrypt.hash(password, 10);
+    }
+
+    if (Object.keys(userUpdates).length > 0) {
+      await storage.updateUser(userId, userUpdates);
+      console.log("User updated:", userUpdates);
+    }
+
+    // --- profile fields ---
+    const profileUpdates: any = {};
+    if (program !== undefined) profileUpdates.program = program;
+    if (yearLevel !== undefined) profileUpdates.yearLevel = yearLevel;
+    if (rollNo !== undefined) profileUpdates.rollNo = rollNo;
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await storage.updateProfile(userId, profileUpdates);
+      console.log("Profile updated:", profileUpdates);
+    }
+
+    // --- return fresh profile ---
+    const userWithProfile = await storage.getUserWithProfile(userId);
+    if (!userWithProfile) return res.status(404).json({ message: "User not found after update" });
+
+    const { password: _, ...safeUser } = userWithProfile as any;
+    res.json(safeUser);
+  } catch (err) {
+    console.error("Update self profile error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
+
+
 }

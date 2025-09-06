@@ -6,6 +6,9 @@ interface StatsCardsProps {
     totalStudents: number;
     activeClasses: number;
     systemHealth: string;
+    monthlyTeacherChange?: number;
+    monthlyStudentChange?: number;
+    monthlyClassesChange?: number;
   };
 }
 
@@ -17,7 +20,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       icon: Users,
       bgColor: "bg-secondary/10",
       iconColor: "text-secondary",
-      change: "+2",
+      change: stats.monthlyTeacherChange ?? 0,
       changeLabel: "this month",
     },
     {
@@ -26,16 +29,16 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       icon: GraduationCap,
       bgColor: "bg-primary/10",
       iconColor: "text-primary",
-      change: "+47",
+      change: stats.monthlyStudentChange ?? 0,
       changeLabel: "this month",
     },
     {
       title: "Active Classes",
-      value: stats.activeClasses || 34,
+      value: stats.activeClasses,
       icon: BookOpen,
       bgColor: "bg-warning/10",
       iconColor: "text-warning",
-      change: "+5",
+      change: stats.monthlyClassesChange ?? 0,
       changeLabel: "this month",
     },
     {
@@ -53,15 +56,13 @@ export default function StatsCards({ stats }: StatsCardsProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {cards.map((card, index) => {
         const Icon = card.icon;
-        
+
         return (
           <div key={index} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">{card.title}</p>
-                <p className="text-3xl font-bold text-slate-900" data-testid={`stat-${card.title.toLowerCase().replace(' ', '-')}`}>
-                  {card.value}
-                </p>
+                <p className="text-3xl font-bold text-slate-900">{card.value}</p>
               </div>
               <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center`}>
                 <Icon className={`w-6 h-6 ${card.iconColor}`} />

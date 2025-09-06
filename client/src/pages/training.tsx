@@ -137,12 +137,16 @@ export default function ModelTraining() {
   const trainedStudents = students.filter(s => s.isTrainingComplete);
 
   // Stats for cards
-  const stats = {
-    totalStudents: students.length,
-    todayAttendance: "-",
-    activeClasses: studentsWithPhotos.length,
-    accuracy: `${trainedStudents.length} trained`,
-  };
+ const stats = {
+  totalStudents: students.length,
+  todayAttendance: 0,                       // default or calculate actual
+  activeClasses: studentsWithPhotos.length,
+  accuracy: trainedStudents.length / (students.length || 1), // ratio 0-1
+  totalSessions: 0,                         // placeholder, replace with real data if available
+  completedSessions: trainedStudents.length,
+  avgStudentsPerClass: students.length / (studentsWithPhotos.length || 1),
+};
+
 
   // Demo/test handler
   const handleBatchProcessingComplete = () => {

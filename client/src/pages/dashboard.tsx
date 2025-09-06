@@ -9,16 +9,20 @@ import WebcamCapture from "@/components/attendance/webcam-capture";
 import BatchProcessingModal from "@/components/attendance/batch-processing-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { User, Clock } from "lucide-react";
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
 
-// Types
 type Stats = {
   totalStudents: number;
-  todayAttendance: string;
+  totalTeachers: number;
+  totalClasses: number;
   activeClasses: number;
-  accuracy: string;
+  todayAttendance: number; // raw number, e.g. 0.85
+  todayClassesCount: number;
+  accuracy: number; // raw number, e.g. 0.95
+  totalSessions: number;
+  completedSessions: number;
+  avgStudentsPerClass: number;
 };
 
 type Class = {
@@ -40,119 +44,89 @@ type Session = {
 };
 
 export default function Dashboard() {
-    const [userName, setUserName] = useState("Guest");
+  const [userName, setUserName] = useState("Guest");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [batchResults, setBatchResults] = useState<any>(null);
-useEffect(() => {
-  async function fetchUser() {
-    try {
-      const res = await apiRequest("GET", "/api/auth/me");
-      const user = await res.json();
-      setUserName(user.name); // <- sets the fetched name
-    } catch (err) {
-      console.error("Failed to fetch user:", err);
-      setUserName("Guest"); // fallback
+
+  // Fetch logged-in user
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (!res.ok) throw new Error("Failed to fetch user");
+        const user = await res.json();
+        setUserName(user.name || "Guest");
+      } catch (err) {
+        console.error(err);
+        setUserName("Guest");
+      }
     }
-  }
-  fetchUser();
-}, []);
+    fetchUser();
+  }, []);
 
   // Fetch stats
-  const { data: stats, isLoading: statsLoading } = useQuery<Stats>({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<Stats>({
     queryKey: ["/api/dashboard/stats"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/dashboard/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },
-    initialData: { totalStudents: 0, todayAttendance: "0%", activeClasses: 0, accuracy: "0%" },
   });
 
+  // Format stats for StatsCards
+const formattedStats = stats ?? null;
+
+
   // Fetch classes
-  const { data: classes = [] } = useQuery<Class[]>({
+  const { data: classes = [], isLoading: classesLoading, isError: classesError } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/classes");
+      if (!res.ok) throw new Error("Failed to fetch classes");
       return res.json();
     },
-    initialData: [],
   });
 
   // Fetch sessions
-  const { data: sessions = [] } = useQuery<Session[]>({
+  const { data: sessions = [], isLoading: sessionsLoading, isError: sessionsError } = useQuery<Session[]>({
     queryKey: ["/api/attendance-sessions"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/attendance-sessions");
+      if (!res.ok) throw new Error("Failed to fetch sessions");
       return res.json();
     },
-    initialData: [],
   });
 
   // Batch processing
   const handleBatchComplete = async (images: string[]) => {
     try {
-      // Create a session with the first available class
-      const sessionData = {
-        classId: classes.length > 0 ? classes[0].id : null,
-      };
+      const sessionData = { classId: classes.length > 0 ? classes[0].id : null };
+      const sessionRes = await apiRequest("POST", "/api/attendance-sessions", sessionData);
+      if (!sessionRes.ok) throw new Error("Failed to create session");
+      const session = await sessionRes.json();
 
-      const sessionResponse = await apiRequest("POST", "/api/attendance-sessions", sessionData);
-      const session = await sessionResponse.json();
+      const processRes = await apiRequest("POST", "/api/face-recognition/process-batch", { sessionId: session.id, images });
+      if (!processRes.ok) throw new Error("Batch processing failed");
+      const results = await processRes.json();
 
-      const response = await apiRequest("POST", "/api/face-recognition/process-batch", {
-        sessionId: session.id,
-        images,
-      });
-
-      const results = await response.json();
       setBatchResults(results.results);
       setShowProcessingModal(true);
-    } catch (error) {
-      console.error("Batch processing failed:", error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  if (statsLoading) {
-    return (
-      <div className="flex h-screen">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <div className="flex-1">
-         <Header
-  title="Dashboard"
-  subtitle="Monitor attendance and manage your classes"
-  showStartAttendance
-  onStartAttendance={() => {}}
-  onMenuClick={() => setIsSidebarOpen(true)}
-  userName={userName} // <-- add this
-/>
-
-
-          <div className="p-4 lg:p-6">
-            <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-gray-200 h-32 rounded-xl"></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Get today's active classes
   const todayClasses = classes?.filter(c => c.isActive).slice(0, 2) || [];
-  
-  // Get recent sessions - sort by createdAt or date, then take the most recent 3
   const recentSessions = sessions
-    ?.filter(session => session.createdAt || session.date) // Only include sessions with timestamps
+    ?.filter(s => s.createdAt || s.date)
     ?.sort((a, b) => {
-      // Sort by createdAt first, then by date as fallback
       const timeA = new Date(a.createdAt || a.date || 0).getTime();
       const timeB = new Date(b.createdAt || b.date || 0).getTime();
-      return timeB - timeA; // Most recent first
+      return timeB - timeA;
     })
-    ?.slice(0, 3) // Take only the 3 most recent
-    || [];
+    ?.slice(0, 3) || [];
 
   return (
     <div className="flex h-screen">
@@ -164,21 +138,28 @@ useEffect(() => {
           showStartAttendance
           onStartAttendance={() => {}}
           onMenuClick={() => setIsSidebarOpen(true)}
+          userName={userName}
         />
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Stats Cards */}
           <div className="mb-6 lg:mb-8">
-            <StatsCards stats={stats!} />
+            {statsLoading ? (
+              <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => <div key={i} className="bg-gray-200 h-32 rounded-xl"></div>)}
+              </div>
+            ) : statsError || !formattedStats ? (
+              <div className="text-red-500">Failed to load stats</div>
+            ) : (
+              <StatsCards stats={formattedStats} />
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
-            {/* Live Attendance */}
             <div className="lg:col-span-2">
               <WebcamCapture onBatchComplete={handleBatchComplete} />
             </div>
 
-            {/* Sidebar Content */}
             <div className="space-y-4 lg:space-y-6">
               {/* Today's Classes */}
               <Card className="shadow-sm border border-gray-200">
@@ -186,7 +167,11 @@ useEffect(() => {
                   <CardTitle className="text-lg font-semibold text-gray-900">Today's Classes</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {todayClasses.length > 0 ? todayClasses.map((cls, index) => (
+                  {classesLoading ? (
+                    <div>Loading classes...</div>
+                  ) : classesError ? (
+                    <div className="text-red-500">Failed to load classes</div>
+                  ) : todayClasses.length > 0 ? todayClasses.map((cls, idx) => (
                     <div key={cls.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium text-gray-900">{cls.name}</p>
@@ -195,9 +180,7 @@ useEffect(() => {
                           {cls.schedule || "No schedule set"}
                         </p>
                       </div>
-                      <Badge variant="secondary">
-                        {index === 0 ? "Active" : "Upcoming"}
-                      </Badge>
+                      <Badge variant="secondary">{idx === 0 ? "Active" : "Upcoming"}</Badge>
                     </div>
                   )) : (
                     <div className="text-center text-gray-500 py-4">No active classes</div>
@@ -211,7 +194,11 @@ useEffect(() => {
                   <CardTitle className="text-lg font-semibold text-gray-900">Recent Sessions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {recentSessions.length > 0 ? recentSessions.map((session) => {
+                  {sessionsLoading ? (
+                    <div>Loading sessions...</div>
+                  ) : sessionsError ? (
+                    <div className="text-red-500">Failed to load sessions</div>
+                  ) : recentSessions.length > 0 ? recentSessions.map(session => {
                     const classData = classes.find(c => c.id === session.classId);
                     const sessionTime = session.createdAt || session.date;
                     return (
@@ -240,72 +227,6 @@ useEffect(() => {
               </Card>
             </div>
           </div>
-
-          {/* Attendance Reports Table */}
-          <Card className="mt-6 lg:mt-8 shadow-sm border border-gray-200">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-semibold text-gray-900">Recent Attendance Reports</CardTitle>
-                <Button variant="ghost" className="text-primary hover:text-primary/80">View All</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Accuracy</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {recentSessions.length > 0 ? recentSessions.map((session) => {
-                      const classData = classes.find(c => c.id === session.classId);
-                      const sessionDate = session.date || session.createdAt;
-                      return (
-                        <tr key={session.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{classData?.name || "Unknown Class"}</div>
-                            <div className="text-sm text-gray-500">{classData?.code || "—"}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden sm:table-cell">
-                            {sessionDate ? new Date(sessionDate).toLocaleDateString() : "—"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {session.totalStudentsRecognized || 0}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
-                            <Badge variant={session.status === "completed" ? "default" : "secondary"}>
-                              {(session.status || "pending").charAt(0).toUpperCase() + (session.status || "pending").slice(1)}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
-                            {((session.averageConfidence || 0) * 100).toFixed(1)}%
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-1">
-                              <Button variant="ghost" size="sm">View</Button>
-                              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">Export</Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }) : (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                          No attendance reports available
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
         </main>
       </div>
 
