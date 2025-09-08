@@ -3,14 +3,32 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { X, RefreshCw } from "lucide-react";
+import { X, RefreshCw, Copy } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
 const createTeacherSchema = z.object({
@@ -28,8 +46,16 @@ interface CreateTeacherModalProps {
   onClose: () => void;
 }
 
-export default function CreateTeacherModal({ open, onClose }: CreateTeacherModalProps) {
-  const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
+export default function CreateTeacherModal({
+  open,
+  onClose,
+}: CreateTeacherModalProps) {
+  const [credentials, setCredentials] = useState<{
+    username: string;
+    password: string;
+    userId: string;
+  } | null>(null);
+
   const { toast } = useToast();
 
   const form = useForm<CreateTeacherForm>({
@@ -45,11 +71,20 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
 
   const createTeacherMutation = useMutation<any, unknown, CreateTeacherForm>({
     mutationFn: async (data) => {
-      const res = await apiRequest("POST", "/api/users/teacher", data);
+      // Lowercase email for consistency
+      const payload = {
+        ...data,
+        email: data.email.toLowerCase(),
+      };
+      const res = await apiRequest("POST", "/api/users/teacher", payload);
       return await res.json();
     },
     onSuccess: (data) => {
-      setCredentials(data.credentials);
+      setCredentials({
+        username: data.credentials.username.toLowerCase(),
+        password: data.credentials.password,
+        userId: data.user.id,
+      });
       toast({
         title: "Teacher created successfully",
         description: `Account created for ${data.user.name}`,
@@ -66,35 +101,37 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
     },
   });
 
-  const generateCredentials = (name: string) => {
-    const cleanName = name.toLowerCase().replace(/[^a-z\s]/g, "").replace(/\s+/g, ".");
-    const username = cleanName + ".teacher";
-    const password = "TMP-" + Math.random().toString(36).substr(2, 6).toUpperCase();
-    return { username, password };
-  };
-
-  const onSubmit = (data: CreateTeacherForm) => {
-    createTeacherMutation.mutate(data);
-  };
-
   const handleClose = () => {
     form.reset();
     setCredentials(null);
     onClose();
   };
 
-  const regeneratePassword = () => {
-    if (credentials) {
-      setCredentials({
-        ...credentials,
-        password: "TMP-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
+  const regeneratePassword = async () => {
+    if (!credentials) return;
+    try {
+      const newPassword =
+        Math.random().toString(36).substr(2, 6).toUpperCase() +
+        Math.floor(Math.random() * 90 + 10); // secure 8-char password
+      const res = await apiRequest("PATCH", `/api/users/${credentials.userId}`, {
+        password: newPassword,
       });
+      const data = await res.json();
+      setCredentials({
+        username: data.user.username.toLowerCase(),
+        password: data.password,
+        userId: data.user.id,
+      });
+      toast({ title: "Password regenerated", description: "New password set" });
+    } catch (err) {
+      toast({ title: "Failed to regenerate password", variant: "destructive" });
     }
   };
 
-  // Generate preview credentials when name changes
-  const watchedName = form.watch("name");
-  const previewCredentials = watchedName ? generateCredentials(watchedName) : null;
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard", description: text });
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -107,7 +144,6 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
               size="sm"
               onClick={handleClose}
               className="text-slate-400 hover:text-slate-600"
-              data-testid="button-close-teacher-modal"
             >
               <X className="w-5 h-5" />
             </Button>
@@ -115,7 +151,10 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit((data) => createTeacherMutation.mutate(data))}
+            className="space-y-4"
+          >
             {/* Full Name */}
             <FormField
               control={form.control}
@@ -126,9 +165,8 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                   <FormControl>
                     <Input
                       {...field}
-                      value={field.value ?? ""} // ✅ ensure string
+                      value={field.value ?? ""}
                       placeholder="Enter teacher's full name"
-                      data-testid="input-teacher-name"
                     />
                   </FormControl>
                   <FormMessage />
@@ -147,10 +185,8 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                     <Input
                       {...field}
                       type="email"
-                      value={field.value ?? ""} // ✅ ensure string
+                      value={field.value ?? ""}
                       placeholder="teacher@school.edu"
-                      data-testid="input-teacher-email"
-                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -165,9 +201,12 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Department</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value ?? ""}
+                  >
                     <FormControl>
-                      <SelectTrigger data-testid="select-teacher-department">
+                      <SelectTrigger>
                         <SelectValue placeholder="Select Department" />
                       </SelectTrigger>
                     </FormControl>
@@ -183,41 +222,49 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
               )}
             />
 
-            {/* Generated Credentials */}
-            {previewCredentials && (
+            {/* Show generated credentials */}
+            {credentials && (
               <div className="bg-slate-50 rounded-lg p-4">
                 <h4 className="font-medium text-slate-900 mb-3">Generated Credentials</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-600">Username:</span>
-                    <span
-                      className="font-mono text-sm bg-white px-2 py-1 rounded border"
-                      data-testid="text-generated-username"
-                    >
-                      {credentials?.username || previewCredentials.username}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-sm bg-white px-2 py-1 rounded border">
+                        {credentials.username}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(credentials.username)}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-slate-600">Password:</span>
                     <div className="flex items-center space-x-2">
-                      <span
-                        className="font-mono text-sm bg-white px-2 py-1 rounded border"
-                        data-testid="text-generated-password"
-                      >
-                        {credentials?.password || previewCredentials.password}
+                      <span className="font-mono text-sm bg-white px-2 py-1 rounded border">
+                        {credentials.password}
                       </span>
-                      {credentials && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={regeneratePassword}
-                          className="text-primary hover:text-blue-700"
-                          data-testid="button-regenerate-password"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={regeneratePassword}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyToClipboard(credentials.password)}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -232,7 +279,7 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                     <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} data-testid="checkbox-send-email" />
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel>Send credentials via email</FormLabel>
@@ -240,18 +287,13 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="forcePasswordChange"
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                     <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="checkbox-force-password-change"
-                      />
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel>Force password change on first login</FormLabel>
@@ -268,7 +310,6 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                 variant="outline"
                 className="flex-1"
                 onClick={handleClose}
-                data-testid="button-cancel-teacher"
               >
                 Cancel
               </Button>
@@ -276,7 +317,6 @@ export default function CreateTeacherModal({ open, onClose }: CreateTeacherModal
                 type="submit"
                 className="flex-1 bg-secondary text-white hover:bg-emerald-700"
                 disabled={createTeacherMutation.isPending}
-                data-testid="button-create-teacher"
               >
                 {createTeacherMutation.isPending ? "Creating..." : "Create Teacher"}
               </Button>

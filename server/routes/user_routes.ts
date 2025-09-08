@@ -1,4 +1,4 @@
-// routes/users.ts
+// routes/users.ts - Fixed version with consistent email handling
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
 import { authenticateToken, requireAdmin } from "./auth_routes";
@@ -114,8 +114,8 @@ export function registerUserRoutes(app: Express) {
 
       const updates: any = {};
       if (typeof isActive === "boolean") updates.isActive = isActive;
-      if (name) updates.name = name;
-      if (email) updates.email = email;
+      if (name) updates.name = name.trim();
+      if (email) updates.email = email.trim().toLowerCase(); // Normalize email
       if (password) updates.password = await bcrypt.hash(password, 10);
 
       const updatedUser = await storage.updateUser(userId, updates);
@@ -143,30 +143,40 @@ export function registerUserRoutes(app: Express) {
         return res.status(400).json({ message: "Name, email, and username are required" });
       }
 
-      const existingUser = await storage.getUserByUsername(username);
+      // Normalize inputs
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedUsername = username.trim().toLowerCase();
+
+      const existingUser = await storage.getUserByUsername(normalizedUsername);
       if (existingUser) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
       const password = generatePassword("admin");
-      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      console.log("Creating admin with normalized data:", {
+        username: normalizedUsername,
+        email: normalizedEmail,
+        password: "***hidden***"
+      });
 
+      // Create user - storage.createUser will normalize and hash
       const user = await storage.createUser({
-        username,
-        password: hashedPassword,
-        name,
+        username: normalizedUsername,
+        password: password, // Pass unhashed password - createUser will hash it
+        name: name.trim(),
         role: "admin",
-        email,
+        email: normalizedEmail,
       });
 
       if (sendEmail) {
         await sendInviteEmail(
-          email,
+          normalizedEmail,
           "Admin Account Created",
           `
             <h2>Welcome, ${name}!</h2>
             <p>Your admin account has been created.</p>
-            <p><b>Username:</b> ${username}<br/><b>Password:</b> ${password}</p>
+            <p><b>Username:</b> ${normalizedUsername}<br/><b>Password:</b> ${password}</p>
             <p>Please change your password after first login.</p>
           `
         );
@@ -175,7 +185,7 @@ export function registerUserRoutes(app: Express) {
       const { password: _, ...safeUser } = user;
       res.status(201).json({
         user: safeUser,
-        credentials: { username, password },
+        credentials: { username: normalizedUsername, password },
       });
     } catch (error) {
       console.error("Create admin error:", error);
@@ -194,38 +204,47 @@ export function registerUserRoutes(app: Express) {
         return res.status(400).json({ message: "Name, email, and department are required" });
       }
 
+      // Normalize inputs
+      const normalizedEmail = email.trim().toLowerCase();
       const username = generateUsername("teacher", name);
+      const normalizedUsername = username.toLowerCase();
       const password = generatePassword("teacher");
-      const hashedPassword = await bcrypt.hash(password, 10);
       const employeeId = generateEmployeeId();
 
-      const existingUser = await storage.getUserByUsername(username);
+      const existingUser = await storage.getUserByUsername(normalizedUsername);
       if (existingUser) {
         return res.status(400).json({ message: "Generated username already exists" });
       }
 
+      console.log("Creating teacher with normalized data:", {
+        username: normalizedUsername,
+        email: normalizedEmail,
+        password: "***hidden***"
+      });
+
+      // Create user - storage.createUser will normalize and hash
       const user = await storage.createUser({
-        username,
-        password: hashedPassword,
-        name,
+        username: normalizedUsername,
+        password: password, // Pass unhashed password - createUser will hash it
+        name: name.trim(),
         role: "teacher",
-        email,
+        email: normalizedEmail,
       });
 
       const teacher = await storage.createTeacher({
         userId: user.id,
-        department,
+        department: department.trim(),
         employeeId,
       });
 
       if (sendEmail) {
         await sendInviteEmail(
-          email,
+          normalizedEmail,
           "Teacher Account Created",
           `
             <h2>Welcome, ${name}!</h2>
             <p>Your teacher account has been created.</p>
-            <p><b>Username:</b> ${username}<br/><b>Password:</b> ${password}</p>
+            <p><b>Username:</b> ${normalizedUsername}<br/><b>Password:</b> ${password}</p>
             <p><b>Employee ID:</b> ${employeeId}</p>
             <p>Please change your password after first login.</p>
           `
@@ -236,7 +255,7 @@ export function registerUserRoutes(app: Express) {
       res.status(201).json({
         user: safeUser,
         teacher,
-        credentials: { username, password },
+        credentials: { username: normalizedUsername, password },
       });
     } catch (error) {
       console.error("Create teacher error:", error);
@@ -255,33 +274,43 @@ export function registerUserRoutes(app: Express) {
         return res.status(400).json({ message: "Name is required" });
       }
 
+      // Normalize inputs
+      const normalizedEmail = email ? email.trim().toLowerCase() : null;
       const studentId = generateStudentId();
       const rollNo = generateRollNo();
-      const username = studentId;
+      const username = studentId.toLowerCase(); // Use student ID as username
       const password = generatePassword("student");
-      const hashedPassword = await bcrypt.hash(password, 10);
 
+      console.log("Creating student with normalized data:", {
+        username: username,
+        email: normalizedEmail,
+        studentId,
+        rollNo,
+        password: "***hidden***"
+      });
+
+      // Create user - storage.createUser will normalize and hash
       const user = await storage.createUser({
-        username,
-        password: hashedPassword,
-        name,
+        username: username,
+        password: password, // Pass unhashed password - createUser will hash it
+        name: name.trim(),
         role: "student",
-        email: email || null,
+        email: normalizedEmail,
       });
 
       const student = await storage.createStudent({
         userId: user.id,
         studentId,
         rollNo,
-        name,
-        email: email || null,
+        name: name.trim(),
+        email: normalizedEmail,
         yearLevel: yearLevel || 1,
         program: program || "General Studies",
       });
 
-      if (sendEmail && email) {
+      if (sendEmail && normalizedEmail) {
         await sendInviteEmail(
-          email,
+          normalizedEmail,
           "Student Account Created",
           `
             <h2>Welcome, ${name}!</h2>

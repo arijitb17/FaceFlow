@@ -38,12 +38,14 @@ export default function Login() {
   // ----------------- Mutations -----------------
   const adminLoginMutation = useMutation({
     mutationFn: async (credentials: typeof adminForm) => {
-      const response = await apiRequest("POST", "/api/auth/login", { 
-        ...credentials, 
-        role: "admin" 
-      });
-      return await response.json();
-    },
+  const response = await apiRequest("POST", "/api/auth/login", { 
+    username: credentials.username.trim().toLowerCase(),
+    password: credentials.password,
+    role: "admin" 
+  });
+  return await response.json();
+},
+
     onSuccess: (data) => {
       localStorage.setItem("authToken", data.token);
       localStorage.setItem("userRole", "admin");

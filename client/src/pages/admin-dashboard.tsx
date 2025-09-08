@@ -73,23 +73,6 @@ export default function AdminDashboard() {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // ----------------- Handlers -----------------
-  const handleQuickAction = (action: string) => {
-    switch (action) {
-      case "bulk-import":
-        toast({ title: "Bulk Import", description: "Coming soon" });
-        break;
-      case "send-credentials":
-        setShowCredentialModal(true);
-        break;
-      case "generate-report":
-        toast({ title: "Generate Report", description: "Coming soon" });
-        break;
-      case "system-settings":
-        toast({ title: "System Settings", description: "Coming soon" });
-        break;
-    }
-  };
 
   if (statsLoading || usersLoading) {
     return (

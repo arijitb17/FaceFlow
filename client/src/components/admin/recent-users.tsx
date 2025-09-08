@@ -28,40 +28,50 @@ export default function RecentUsers({ users, onViewAll }: RecentUsersProps) {
       .join("")
       .toUpperCase()
       .slice(0, 2);
+const getAvatarColor = (role: string) => {
+  const r = role.trim().toLowerCase();
+  switch (r) {
+    case "teacher":
+      return "bg-blue-100 text-blue-700";
+    case "student":
+      return "bg-green-100 text-green-700";
+    case "admin":
+      return "bg-orange-100 text-orange-700";
+    default:
+      return "bg-gray-100 text-gray-600";
+  }
+};
 
-  const getAvatarColor = (role: string) => {
-    switch (role) {
-      case "teacher":
-        return "bg-blue-100 text-blue-700";
-      case "student":
-        return "bg-green-100 text-green-700";
-      default:
-        return "bg-gray-100 text-gray-600";
-    }
-  };
+const getRoleBadge = (role: string) => {
+  const r = role.trim().toLowerCase();
+  switch (r) {
+    case "teacher":
+      return (
+        <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-blue-100 text-blue-700">
+          <BookOpen className="w-3.5 h-3.5" /> Teacher
+        </Badge>
+      );
+    case "student":
+      return (
+        <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-green-100 text-green-700">
+          <UserIcon className="w-3.5 h-3.5" /> Student
+        </Badge>
+      );
+    case "admin":
+      return (
+        <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-orange-100 text-orange-700">
+          <UserIcon className="w-3.5 h-3.5" /> Admin
+        </Badge>
+      );
+    default:
+      return (
+        <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-gray-100 text-gray-600">
+          <UserIcon className="w-3.5 h-3.5" /> {role}
+        </Badge>
+      );
+  }
+};
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "teacher":
-        return (
-          <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-blue-100 text-blue-700">
-            <BookOpen className="w-3.5 h-3.5" /> Teacher
-          </Badge>
-        );
-      case "student":
-        return (
-          <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-green-100 text-green-700">
-            <UserIcon className="w-3.5 h-3.5" /> Student
-          </Badge>
-        );
-      default:
-        return (
-          <Badge className="flex items-center gap-1 px-2 py-1 text-sm rounded bg-gray-100 text-gray-600">
-            <UserIcon className="w-3.5 h-3.5" /> {role}
-          </Badge>
-        );
-    }
-  };
 
   const getStatusBadge = (isActive: boolean) => {
     return isActive ? (
