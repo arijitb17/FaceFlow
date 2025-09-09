@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -52,6 +52,23 @@ export default function Classes() {
     teacherId: ""
   });
   const { toast } = useToast();
+const [userName, setUserName] = useState<string | null>(null);
+
+useEffect(() => {
+  async function fetchUser() {
+    try {
+      const res = await apiRequest("GET", "/api/auth/me");
+      if (!res.ok) throw new Error("Failed to fetch user");
+      const user = await res.json();
+      setUserName(user.name || "Guest");
+    } catch (err) {
+      console.error("Error fetching user:", err);
+      setUserName("Guest"); // only fallback if request fails
+    }
+  }
+  fetchUser();
+}, []);
+
 
   // Fetch classes
   const { data: classes = [], isLoading } = useQuery<Class[]>({
@@ -190,10 +207,12 @@ export default function Classes() {
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex-1">
           <Header
-            title="Classes"
-            subtitle="Loading..."
-            onMenuClick={() => setIsSidebarOpen(true)}
-          />
+  title="Classes"
+  subtitle="Manage your classes and enrollment"
+  onMenuClick={() => setIsSidebarOpen(true)}
+  userName={userName ?? "Loading..."} // <- show Loading until API resolves
+/>
+
           <div className="p-4 lg:p-6">
             <div className="animate-pulse space-y-4">
               {[...Array(3)].map((_, i) => (
@@ -211,10 +230,12 @@ export default function Classes() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
         <Header
-          title="Classes"
-          subtitle="Manage your classes and enrollment"
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
+  title="Classes"
+  subtitle="Manage your classes and enrollment"
+  onMenuClick={() => setIsSidebarOpen(true)}
+  userName={userName ?? "Loading..."} 
+/>
+
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Search + Add button */}

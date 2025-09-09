@@ -69,7 +69,7 @@ export default function BatchProcessingModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh]">
           {/* Summary Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-blue-50 rounded-lg">
@@ -215,22 +215,32 @@ export default function BatchProcessingModal({
               Close
             </Button>
             <div className="space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const dataStr = JSON.stringify(results, null, 2);
-                  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                  const url = URL.createObjectURL(dataBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `attendance-${results.sessionId.substring(0, 8)}.json`;
-                  link.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Export Results
-              </Button>
+             <Button
+  variant="outline"
+  onClick={() => {
+    // Convert results to CSV
+    const rows = [
+      ["Student ID", "Confidence"], // Header
+      ...results.recognizedStudents.map((r) =>
+        typeof r === "string" ? [r, ""] : [r.studentId, r.confidence ?? ""]
+      ),
+    ];
+
+    const csvContent = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `attendance-${results.sessionId.substring(0, 8)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }}
+>
+  <Download className="mr-2 h-4 w-4" />
+  Export CSV
+</Button>
+
               <Button onClick={onClose}>
                 Continue
               </Button>

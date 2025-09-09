@@ -40,9 +40,10 @@ export default function LiveAttendance() {
     progress: 0,
     message: "Ready",
   });
-  const [userName, setUserName] = useState("Guest");
+  
   // Selected class for attendance
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [userName, setUserName] = useState("Guest");
   useEffect(() => {
     async function fetchUser() {
       try {

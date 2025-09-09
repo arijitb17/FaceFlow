@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -53,7 +53,22 @@ export default function Reports() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+const [userName, setUserName] = useState<string | null>(null);
 
+useEffect(() => {
+  async function fetchUser() {
+    try {
+      const res = await apiRequest("GET", "/api/auth/me");
+      if (!res.ok) throw new Error("Failed to fetch user");
+      const user = await res.json();
+      setUserName(user.name || "Guest");
+    } catch (err) {
+      console.error("Error fetching user:", err);
+      setUserName("Guest"); // only fallback if request fails
+    }
+  }
+  fetchUser();
+}, []);
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<AttendanceSession[]>({
     queryKey: ["/api/attendance-sessions"],
     queryFn: async () => {
@@ -152,7 +167,12 @@ export default function Reports() {
     <div className="flex h-screen">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
-        <Header title="Reports" subtitle="View and export attendance analytics" onMenuClick={() => setIsSidebarOpen(true)} />
+        <Header
+          title="Reports"
+          subtitle="View your class Reports"
+          onMenuClick={() => setIsSidebarOpen(true)}
+          userName={userName ?? "Loading..."} 
+        />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

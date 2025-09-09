@@ -585,10 +585,43 @@ else {
     }));
   }
 
-  async enrollStudent(
-    classId: string,
-    studentId: string
-  ): Promise<ClassEnrollment> {
+async enrollStudent(classId: string, studentId: string): Promise<ClassEnrollment> {
+  console.log("Storage: enrollStudent called", { classId, studentId });
+  
+  // Validate inputs
+  if (!classId || !studentId) {
+    throw new Error("Class ID and Student ID are required");
+  }
+
+  // Check if class exists
+  const classExists = await this.getClass(classId);
+  if (!classExists) {
+    throw new Error("Class not found");
+  }
+
+  // Check if student exists  
+  const studentExists = await this.getStudent(studentId);
+  if (!studentExists) {
+    throw new Error("Student not found");
+  }
+
+  // Check if already enrolled
+  const existingEnrollment = await db
+    .select()
+    .from(classEnrollments)
+    .where(
+      and(
+        eq(classEnrollments.classId, classId),
+        eq(classEnrollments.studentId, studentId)
+      )
+    )
+    .limit(1);
+
+  if (existingEnrollment.length > 0) {
+    throw new Error("Student is already enrolled in this class");
+  }
+
+  try {
     const [enrollment] = await db
       .insert(classEnrollments)
       .values({
@@ -596,8 +629,19 @@ else {
         studentId,
       })
       .returning();
+    
+    console.log("Storage: enrollment created", enrollment);
     return enrollment;
+  } catch (dbError: any) {
+    console.error("Database error during enrollment:", dbError);
+    
+    if (dbError.code === '23505') { // Unique constraint violation
+      throw new Error("Student is already enrolled in this class");
+    }
+    
+    throw new Error(`Database error: ${dbError.message}`);
   }
+}
 
   async unenrollStudent(classId: string, studentId: string): Promise<boolean> {
     const result = await db

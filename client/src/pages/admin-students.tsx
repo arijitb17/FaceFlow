@@ -108,24 +108,26 @@ const { data: classStudents = [] } = useQuery<Student[]>({
 
 
   // Mutation: enroll student
-  const enrollStudentMutation = useMutation({
-    mutationFn: async (data: { studentId: string; classId: string }) => {
-      const response = await apiRequest(
-        "POST",
-        `/api/classes/${data.classId}/students/${data.studentId}`
-      );
-      const resData = await response.json();
-      return resData;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
-      toast({ title: "Student enrolled successfully" });
-      setIsEnrollDialogOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message || "Failed to enroll student", variant: "destructive" });
-    },
-  });
+const enrollStudentMutation = useMutation({
+  mutationFn: async (data: { studentId: string; classId: string }) => {
+    const response = await apiRequest(
+      "POST",
+      `/api/classes/${data.classId}/enroll`,
+      { studentId: data.studentId } // pass studentId in the body
+    );
+    const resData = await response.json();
+    return resData;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
+    toast({ title: "Student enrolled successfully" });
+    setIsEnrollDialogOpen(false);
+  },
+  onError: (error: Error) => {
+    toast({ title: "Error", description: error.message || "Failed to enroll student", variant: "destructive" });
+  },
+});
+
 
   // Mutation: unenroll student (disabled)
   const unenrollStudentMutation = useMutation({

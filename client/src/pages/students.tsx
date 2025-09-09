@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -18,6 +18,22 @@ interface StudentWithUser extends Student {
 export default function Students() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+const [userName, setUserName] = useState<string | null>(null);
+
+useEffect(() => {
+  async function fetchUser() {
+    try {
+      const res = await apiRequest("GET", "/api/auth/me");
+      if (!res.ok) throw new Error("Failed to fetch user");
+      const user = await res.json();
+      setUserName(user.name || "Guest");
+    } catch (err) {
+      console.error("Error fetching user:", err);
+      setUserName("Guest"); // only fallback if request fails
+    }
+  }
+  fetchUser();
+}, []);
 
 const { data: students = [], isLoading } = useQuery<StudentWithUser[]>({
   queryKey: ["/api/students/my"],
@@ -46,10 +62,12 @@ const { data: students = [], isLoading } = useQuery<StudentWithUser[]>({
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
         <Header
-          title="Students"
-          subtitle="View student profiles"
-          onMenuClick={() => setIsSidebarOpen(true)}
-        />
+  title="Students"
+  subtitle="Manage your students and enrollment"
+  onMenuClick={() => setIsSidebarOpen(true)}
+  userName={userName ?? "Loading..."} 
+/>
+
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Search */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">

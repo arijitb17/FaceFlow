@@ -17,9 +17,9 @@ type Stats = {
   totalTeachers: number;
   totalClasses: number;
   activeClasses: number;
-  todayAttendance: number; // raw number, e.g. 0.85
+  todayAttendance: number; 
   todayClassesCount: number;
-  accuracy: number; // raw number, e.g. 0.95
+  accuracy: number; 
   totalSessions: number;
   completedSessions: number;
   avgStudentsPerClass: number;
@@ -135,7 +135,6 @@ const formattedStats = stats ?? null;
         <Header
           title="Dashboard"
           subtitle="Monitor attendance and manage your classes"
-          showStartAttendance
           onStartAttendance={() => {}}
           onMenuClick={() => setIsSidebarOpen(true)}
           userName={userName}

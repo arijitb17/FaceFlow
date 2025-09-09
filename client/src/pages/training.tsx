@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -44,6 +44,25 @@ export default function ModelTraining() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [batchResults, setBatchResults] = useState<ProcessingResults | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (!res.ok) throw new Error("Failed to fetch user");
+        const user = await res.json();
+        setUserName(user.name || "Guest");
+        setUserRole(user.role || "teacher");
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        setUserName("Guest");
+        setUserRole("teacher");
+      }
+    }
+    fetchUser();
+  }, []);
 
   // JSON-safe wrapper
   const parseJsonSafely = async (res: Response) => {
@@ -60,16 +79,21 @@ export default function ModelTraining() {
     }
   };
 
-  // Fetch students
+  // Fetch students - now filtered by teacher's classes
   const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
-    queryKey: ["students"],
+    queryKey: ["teacher-students", userRole],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/students");
+      // Use the endpoint that returns only teacher's students
+      const endpoint = userRole === "admin" ? "/api/students" : "/api/students/my";
+      const res = await apiRequest("GET", endpoint);
       const json = await parseJsonSafely(res);
-      if (!json.students) return [];
+      
+      // Handle different response structures
+      const studentsList = json.students || json || [];
+      if (!Array.isArray(studentsList)) return [];
 
       return await Promise.all(
-        json.students.map(async (s: any) => {
+        studentsList.map(async (s: any) => {
           const photosArray = Array.isArray(s.photos) ? s.photos : [];
           let datasetFolderExists = photosArray.length > 0;
           try {
@@ -90,27 +114,48 @@ export default function ModelTraining() {
       );
     },
     refetchInterval: 5000,
+    enabled: !!userRole, // Only fetch when we know the user role
   });
 
-  // Fetch training status
+  // Fetch training status - now based on teacher's students only
   const { data: trainingStatus } = useQuery<TrainingStatus>({
-    queryKey: ["training-status"],
+    queryKey: ["training-status", students.length],
     queryFn: async () => {
       try {
+        // Calculate training status based on teacher's students
+        const studentsWithPhotos = students.filter(s => s.photos.length > 0 || s.datasetFolderExists);
+        const trainedStudents = students.filter(s => s.isTrainingComplete);
+        
+        // Check if global training is in progress
         const res = await apiRequest("GET", "/api/face-recognition/training-status");
-        return await parseJsonSafely(res);
+        const globalStatus = await parseJsonSafely(res);
+        
+        return {
+          isTraining: globalStatus.isTraining || false,
+          progress: globalStatus.progress || 0,
+          message: globalStatus.message || "Ready to train",
+          totalStudents: students.length,
+          studentsWithPhotos: studentsWithPhotos.length,
+          trainedStudents: trainedStudents.length,
+          needsTraining: studentsWithPhotos.length > trainedStudents.length,
+        };
       } catch {
+        const studentsWithPhotos = students.filter(s => s.photos.length > 0 || s.datasetFolderExists);
+        const trainedStudents = students.filter(s => s.isTrainingComplete);
+        
         return {
           isTraining: false,
           progress: 0,
-          totalStudents: 0,
-          studentsWithPhotos: 0,
-          trainedStudents: 0,
-          needsTraining: false,
+          message: "Ready to train",
+          totalStudents: students.length,
+          studentsWithPhotos: studentsWithPhotos.length,
+          trainedStudents: trainedStudents.length,
+          needsTraining: studentsWithPhotos.length > trainedStudents.length,
         };
       }
     },
     refetchInterval: 2000,
+    enabled: students.length > 0, // Only fetch when students are loaded
   });
 
   // Training mutation
@@ -124,7 +169,7 @@ export default function ModelTraining() {
       return json;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-students"] });
       queryClient.invalidateQueries({ queryKey: ["training-status"] });
     },
     onError: (error: any) => {
@@ -136,17 +181,16 @@ export default function ModelTraining() {
   const untrainedStudents = studentsWithPhotos.filter(s => !s.isTrainingComplete);
   const trainedStudents = students.filter(s => s.isTrainingComplete);
 
-  // Stats for cards
- const stats = {
-  totalStudents: students.length,
-  todayAttendance: 0,                       // default or calculate actual
-  activeClasses: studentsWithPhotos.length,
-  accuracy: trainedStudents.length / (students.length || 1), // ratio 0-1
-  totalSessions: 0,                         // placeholder, replace with real data if available
-  completedSessions: trainedStudents.length,
-  avgStudentsPerClass: students.length / (studentsWithPhotos.length || 1),
-};
-
+  // Stats for cards - now based on teacher's students
+  const stats = {
+    totalStudents: students.length,
+    todayAttendance: 0,
+    activeClasses: studentsWithPhotos.length,
+    accuracy: trainedStudents.length / (students.length || 1),
+    totalSessions: 0,
+    completedSessions: trainedStudents.length,
+    avgStudentsPerClass: students.length / (studentsWithPhotos.length || 1),
+  };
 
   // Demo/test handler
   const handleBatchProcessingComplete = () => {
@@ -162,16 +206,26 @@ export default function ModelTraining() {
     setShowModal(true);
   };
 
+  // Show loading state until user role is determined
+  if (!userRole) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <RefreshCw className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col min-h-0">
         <Header
           title="Model Training"
-          subtitle="Manage face recognition model training"
+          subtitle={userRole === "admin" ? "Train all student data" : "Train your students' data"}
           onMenuClick={() => setIsSidebarOpen(true)}
+          userName={userName ?? "Loading..."} 
         />
-
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           <StatsCards stats={stats} />
 
@@ -257,6 +311,9 @@ export default function ModelTraining() {
                     <div className="text-center py-8">
                       <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
                       <p className="text-lg font-medium mb-2">No Student Photos Found</p>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {userRole === "admin" ? "No students have uploaded photos yet." : "None of your students have uploaded photos yet."}
+                      </p>
                       <Button variant="outline" onClick={() => window.location.href = "/admin/students"}>
                         Go to Students
                       </Button>
@@ -265,6 +322,9 @@ export default function ModelTraining() {
                     <div className="text-center py-8">
                       <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                       <p className="text-lg font-medium mb-2">Model Training Complete!</p>
+                      <p className="text-sm text-gray-600 mb-4">
+                        {userRole === "admin" ? "All students are trained." : "All your students are trained and ready for recognition."}
+                      </p>
                       <Button variant="outline" onClick={handleBatchProcessingComplete}>
                         Test Recognition
                       </Button>
@@ -282,11 +342,13 @@ export default function ModelTraining() {
               </Card>
             </div>
 
-            {/* Right Column */}
+            {/* Right Column - Now shows only teacher's students */}
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Student Training Status</CardTitle>
+                  <CardTitle>
+                    {userRole === "admin" ? "All Students Training Status" : "Your Students Training Status"}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 max-h-96 overflow-y-auto">
                   {studentsLoading ? (
@@ -295,7 +357,9 @@ export default function ModelTraining() {
                       <p>Loading students...</p>
                     </div>
                   ) : students.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">No students found.</div>
+                    <div className="text-center py-8 text-gray-500">
+                      {userRole === "admin" ? "No students found." : "No students enrolled in your classes."}
+                    </div>
                   ) : (
                     students.map(student => (
                       <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
