@@ -1,6 +1,6 @@
 "use client";
 
-import { useState,useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Download, Search, Calendar as CalendarIcon, BarChart3, Users, TrendingUp, FileText, Filter } from "lucide-react";
+import { Download, Search, Calendar as CalendarIcon, BarChart3, Users, TrendingUp, FileText, Filter, Eye, List } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,10 @@ type AttendanceSession = {
   students: AttendanceStudent[];
   status?: string;
   createdAt?: string;
+  totalImages?: number;
+  totalFacesDetected?: number;
+  totalStudentsRecognized?: number;
+  averageConfidence?: number;
 };
 
 type Class = {
@@ -53,22 +57,24 @@ export default function Reports() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
-const [userName, setUserName] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [showDetailedView, setShowDetailedView] = useState(false);
 
-useEffect(() => {
-  async function fetchUser() {
-    try {
-      const res = await apiRequest("GET", "/api/auth/me");
-      if (!res.ok) throw new Error("Failed to fetch user");
-      const user = await res.json();
-      setUserName(user.name || "Guest");
-    } catch (err) {
-      console.error("Error fetching user:", err);
-      setUserName("Guest"); // only fallback if request fails
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (!res.ok) throw new Error("Failed to fetch user");
+        const user = await res.json();
+        setUserName(user.name || "Guest");
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        setUserName("Guest");
+      }
     }
-  }
-  fetchUser();
-}, []);
+    fetchUser();
+  }, []);
+
   const { data: sessions = [], isLoading: sessionsLoading } = useQuery<AttendanceSession[]>({
     queryKey: ["/api/attendance-sessions"],
     queryFn: async () => {
@@ -122,28 +128,121 @@ useEffect(() => {
 
   const exportToCSV = () => {
     if (!filteredSessions.length) return;
-    const csvData = filteredSessions.flatMap((session) => {
-      const cls = classes.find((c) => c.id === session.classId);
-      return session.students?.map((st) => ({
-        Class: cls?.name || "Unknown",
-        Code: cls?.code || "N/A",
-        Date: session.date ? format(new Date(session.date), "yyyy-MM-dd") : "N/A",
-        "Student ID": st.studentId,
-        Name: st.name,
-        Recognized: st.recognized ? "Yes" : "No",
-        Confidence: st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A",
-        Status: session.status || "Unknown",
-      })) ?? [];
-    });
-    if (!csvData.length) return;
+    
+    if (showDetailedView) {
+      // Export individual student records
+      const csvData = filteredSessions.flatMap((session) => {
+        const cls = classes.find((c) => c.id === session.classId);
+        return session.students?.map((st) => ({
+          Class: cls?.name || "Unknown",
+          "Class Code": cls?.code || "N/A",
+          Date: session.date ? format(new Date(session.date), "yyyy-MM-dd HH:mm") : "N/A",
+          "Student ID": st.studentId,
+          Name: st.name,
+          Status: st.recognized ? "Present" : "Absent",
+          Confidence: st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A",
+          "Session Status": session.status || "Unknown",
+        })) ?? [];
+      });
+      
+      if (!csvData.length) return;
+      const csv = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).map((v) => `"${v}"`).join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `student-attendance-details-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      // Export class-level session data
+      const csvData = filteredSessions.map((session) => {
+        const cls = classes.find((c) => c.id === session.classId);
+        const totalStudents = session.students?.length || 0;
+        const presentStudents = session.students?.filter(st => st.recognized).length || 0;
+        const absentStudents = totalStudents - presentStudents;
+        const attendanceRate = totalStudents > 0 ? ((presentStudents / totalStudents) * 100).toFixed(1) : "0.0";
+        
+        const recognizedStudents = session.students?.filter(st => st.recognized) || [];
+        const avgConfidence = recognizedStudents.length > 0 
+          ? recognizedStudents.reduce((sum, st) => sum + (st.confidence || 0), 0) / recognizedStudents.length 
+          : 0;
 
-    const csv = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).map((v) => `"${v}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+        return {
+          Class: cls?.name || "Unknown",
+          "Class Code": cls?.code || "N/A",
+          Date: session.date ? format(new Date(session.date), "yyyy-MM-dd HH:mm") : "N/A",
+          "Total Students": totalStudents,
+          "Present": presentStudents,
+          "Absent": absentStudents,
+          "Attendance Rate": `${attendanceRate}%`,
+          "Avg Confidence": avgConfidence > 0 ? `${(avgConfidence * 100).toFixed(1)}%` : "N/A",
+          Status: session.status || "Unknown",
+        };
+      });
+      
+      if (!csvData.length) return;
+      const csv = [Object.keys(csvData[0]).join(","), ...csvData.map((row) => Object.values(row).map((v) => `"${v}"`).join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `class-attendance-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // Function to export individual session with student details (each row = one student)
+  const exportSessionToCSV = (session: AttendanceSession) => {
+    const cls = classes.find((c) => c.id === session.classId);
+    
+    if (!session.students || session.students.length === 0) {
+      alert("No student data available for this session");
+      return;
+    }
+
+    // Create CSV with individual student records
+    const csvData = session.students.map((student, index) => ({
+      "S.No": index + 1,
+      "Class Name": cls?.name || "Unknown",
+      "Class Code": cls?.code || "N/A", 
+      "Session Date": session.date ? format(new Date(session.date), "dd/MM/yyyy") : "N/A",
+      "Session Time": session.date ? format(new Date(session.date), "HH:mm") : "N/A",
+      "Student ID/Roll No": student.studentId,
+      "Student Name": student.name,
+      "Attendance Status": student.recognized ? "Present" : "Absent",
+      "Recognition Confidence": student.confidence ? `${(student.confidence * 100).toFixed(1)}%` : "N/A",
+      "Session Status": session.status || "Unknown"
+    }));
+
+    // Convert to CSV format
+    const headers = Object.keys(csvData[0]);
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map(row => 
+        Object.values(row).map(value => 
+          // Properly escape CSV values that contain commas or quotes
+          typeof value === 'string' && (value.includes(',') || value.includes('"')) 
+            ? `"${value.replace(/"/g, '""')}"` 
+            : `"${value}"`
+        ).join(",")
+      )
+    ].join("\n");
+
+    // Download the file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `attendance-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    
+    const sessionDate = session.date ? format(new Date(session.date), "yyyy-MM-dd") : "unknown";
+    const className = cls?.code || cls?.name?.replace(/\s+/g, '-') || "unknown";
+    link.download = `${className}-attendance-${sessionDate}-individual-students.csv`;
+    
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
@@ -185,9 +284,20 @@ useEffect(() => {
           {/* Filters */}
           <Card className="shadow-sm border border-gray-200">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Filter className="h-5 w-5" />
-                <span>Filters</span>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-5 w-5" />
+                  <span>Filters</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDetailedView(!showDetailedView)}
+                  className="ml-4 flex items-center space-x-2"
+                >
+                  {showDetailedView ? <List className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <span>{showDetailedView ? "Class View" : "Student Details"}</span>
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -197,14 +307,19 @@ useEffect(() => {
                 <DateFilter date={selectedDate} setDate={setSelectedDate} />
                 <Button onClick={exportToCSV} disabled={!filteredSessions.length} className="w-full bg-blue-600 text-white hover:bg-blue-700">
                   <Download className="mr-2 h-4 w-4" />
-                  Export CSV
+                  Export All CSV
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           {/* Reports Table */}
-          <ReportsTable sessions={filteredSessions} classes={classes} />
+          <ReportsTable 
+            sessions={filteredSessions} 
+            classes={classes} 
+            showDetailedView={showDetailedView} 
+            exportSessionToCSV={exportSessionToCSV}
+          />
         </main>
       </div>
     </div>
@@ -286,7 +401,17 @@ function DateFilter({ date, setDate }: { date?: Date; setDate: (d?: Date) => voi
   );
 }
 
-function ReportsTable({ sessions, classes }: { sessions: AttendanceSession[]; classes: Class[] }) {
+function ReportsTable({ 
+  sessions, 
+  classes, 
+  showDetailedView, 
+  exportSessionToCSV 
+}: { 
+  sessions: AttendanceSession[]; 
+  classes: Class[]; 
+  showDetailedView: boolean;
+  exportSessionToCSV: (session: AttendanceSession) => void;
+}) {
   if (!sessions.length) {
     return (
       <div className="text-center py-12">
@@ -297,10 +422,83 @@ function ReportsTable({ sessions, classes }: { sessions: AttendanceSession[]; cl
     );
   }
 
+  if (showDetailedView) {
+    return (
+      <Card className="shadow-sm border border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <List className="h-5 w-5" />
+            <span>Student Attendance Details ({sessions.flatMap(s => s.students || []).length} records)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full table-auto border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Class</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Student ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Confidence</th>
+                  <th className="px-6 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sessions.map((session) => {
+                  const cls = classes.find((c) => c.id === session.classId);
+                  const sessionDate = session.date ? new Date(session.date) : undefined;
+                  return (
+                    <>
+                      {(session.students ?? []).map((st, idx) => (
+                        <tr key={`${session.id}-${st.id}`} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">{cls?.name || "Unknown"}</td>
+                          <td className="px-6 py-4">{sessionDate ? format(sessionDate, "MMM dd, yyyy HH:mm") : "N/A"}</td>
+                          <td className="px-6 py-4">{st.studentId}</td>
+                          <td className="px-6 py-4">{st.name}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              st.recognized ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                            }`}>
+                              {st.recognized ? "Present" : "Absent"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">{st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A"}</td>
+                          {idx === 0 && (
+                            <td rowSpan={session.students?.length} className="px-6 py-4">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => exportSessionToCSV(session)}
+                                className="flex items-center space-x-1"
+                              >
+                                <Download className="h-4 w-4" />
+                                <span>CSV</span>
+                              </Button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Class-level view showing session summaries with individual session download
   return (
     <Card className="shadow-sm border border-gray-200">
       <CardHeader>
-        <CardTitle>Attendance Reports ({sessions.length})</CardTitle>
+        <CardTitle className="flex items-center space-x-2">
+          <BarChart3 className="h-5 w-5" />
+          <span>Class Attendance Sessions ({sessions.length})</span>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -308,27 +506,105 @@ function ReportsTable({ sessions, classes }: { sessions: AttendanceSession[]; cl
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recognized</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Students</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Absent</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Attendance Rate</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Confidence</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sessions.flatMap((session) => {
+              {sessions.map((session) => {
                 const cls = classes.find((c) => c.id === session.classId);
                 const sessionDate = session.date ? new Date(session.date) : undefined;
-                return (session.students ?? []).map((st) => (
-                  <tr key={`${session.id}-${st.id}`} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">{cls?.name || "Unknown"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{sessionDate ? format(sessionDate, "MMM dd, yyyy") : "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{st.studentId}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{st.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{st.recognized ? "Yes" : "No"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{st.confidence ? `${(st.confidence * 100).toFixed(1)}%` : "N/A"}</td>
+                const totalStudents = session.students?.length || 0;
+                const presentStudents = session.students?.filter(st => st.recognized).length || 0;
+                const absentStudents = totalStudents - presentStudents;
+                const attendanceRate = totalStudents > 0 ? ((presentStudents / totalStudents) * 100).toFixed(1) : "0.0";
+                
+                // Calculate average confidence for recognized students only
+                const recognizedStudents = session.students?.filter(st => st.recognized) || [];
+                const avgConfidence = recognizedStudents.length > 0 
+                  ? recognizedStudents.reduce((sum, st) => sum + (st.confidence || 0), 0) / recognizedStudents.length 
+                  : 0;
+
+                return (
+                  <tr key={session.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium text-gray-900">{cls?.name || "Unknown"}</div>
+                        <div className="text-sm text-gray-500">{cls?.code || "N/A"}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {sessionDate ? format(sessionDate, "MMM dd, yyyy") : "N/A"}
+                      {sessionDate && (
+                        <div className="text-xs text-gray-500">
+                          {format(sessionDate, "HH:mm")}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                      {totalStudents}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        {presentStudents}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        {absentStudents}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              parseFloat(attendanceRate) >= 80 ? 'bg-green-600' :
+                              parseFloat(attendanceRate) >= 60 ? 'bg-yellow-600' : 'bg-red-600'
+                            }`}
+                            style={{ width: `${Math.min(parseFloat(attendanceRate), 100)}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{attendanceRate}%</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {avgConfidence > 0 ? `${(avgConfidence * 100).toFixed(1)}%` : "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        session.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        session.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                        session.status === 'failed' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {session.status === 'completed' ? 'Completed' :
+                         session.status === 'processing' ? 'Processing' :
+                         session.status === 'failed' ? 'Failed' :
+                         'Unknown'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => exportSessionToCSV(session)}
+                        disabled={!session.students || session.students.length === 0}
+                        className="flex items-center space-x-1"
+                        title="Download student details for this session"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Students CSV</span>
+                      </Button>
+                    </td>
                   </tr>
-                ));
+                );
               })}
             </tbody>
           </table>

@@ -140,7 +140,6 @@ export default function LiveAttendance() {
        <Header
                  title="Dashboard"
                  subtitle="Monitor attendance and manage your classes"
-                 showStartAttendance
                  onStartAttendance={() => {}}
                  onMenuClick={() => setIsSidebarOpen(true)}
                  userName={userName}
