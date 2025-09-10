@@ -1,59 +1,40 @@
-# =========================
-# Stage 1: Build client
-# =========================
-FROM node:20-alpine AS client-build
-
-# Set working directory
-WORKDIR /app
-
-# Copy client package.json
-COPY client/package*.json ./client/
-
-# Copy root tsconfig.json and vite.config.ts
-COPY tsconfig.json vite.config.ts ./
-
-# Install client dependencies
-RUN cd client && npm install
-
-# Copy client source code
-COPY client/src ./client/src
-COPY client/index.html ./client/
-
-# Build client
-RUN cd client && npm run build
-
-# =========================
-# Stage 2: Build server
-# =========================
-FROM node:20-alpine AS server-build
+# Stage 1: Build Stage
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy server package.json and root tsconfig.json
-COPY package*.json tsconfig.json ./ 
-COPY server ./server
+# Copy root package files and tsconfig/vite config
+COPY package*.json tsconfig.json vite.config.ts ./
 
-# Install server dependencies
+# Install all dependencies (dev + prod) for building
 RUN npm install
 
-# Copy client build from previous stage
-COPY --from=client-build /app/client/dist ./server/public
+# Copy server files
+COPY server ./server
 
-# =========================
-# Stage 3: Run server
-# =========================
+# Copy client files
+COPY client ./client
+
+# Build client
+RUN npm run build --workspace client || npm --prefix client run build
+
+# Bundle server for production
+RUN npm run build
+
+# Stage 2: Production Stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy server build stage
-COPY --from=server-build /app .
+# Copy only necessary files from build stage
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package*.json ./
 
-# Expose port
-EXPOSE 5000
+# Install only production dependencies
+RUN npm install --omit=dev
 
-# Environment variables can also be passed via Railway / EC2
-ENV NODE_ENV=production
+# Expose server port
+EXPOSE 3000
 
-# Start server
-CMD ["node", "server/index.js"]
+# Start the server
+CMD ["npm", "run", "start"]
