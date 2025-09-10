@@ -9,25 +9,25 @@ COPY package*.json tsconfig.json vite.config.ts ./
 # Install all dependencies (dev + prod) for building
 RUN npm install
 
-# Copy server files
+# Copy server and client code
 COPY server ./server
-
-# Copy client files
 COPY client ./client
 
-# Build client
-RUN npm run build --workspace client || npm --prefix client run build
-
-# Bundle server for production
+# Build client using Vite
 RUN npm run build
+
+# Bundle server using esbuild
+RUN esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist
 
 # Stage 2: Production Stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy only necessary files from build stage
+# Copy built server from build stage
 COPY --from=build /app/dist ./dist
+
+# Copy package.json for production dependencies
 COPY --from=build /app/package*.json ./
 
 # Install only production dependencies
