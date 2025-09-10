@@ -1,82 +1,141 @@
-// routes/dashboard.ts
+// routes/attendance.ts
 import type { Express, Request, Response } from "express";
 import { storage } from "../storage";
+import { insertAttendanceSessionSchema } from "@shared/schema";
+import type { Student, User } from "@shared/schema";
+import { z } from "zod";
 
-export function registerDashboardRoutes(app: Express) {
-  // Helper: get attendance records for a session
-  async function getSessionAttendance(sessionId: string, classId?: string) {
-    let students = [];
-    if (classId) {
-      students = await storage.getClassStudents(classId);
-    }
-    const attendanceRecords = await storage.getAttendanceRecords(sessionId);
-
-    const totalStudents = students.length;
-    const presentStudents = attendanceRecords.filter(r => r.isPresent).length;
-
-    return { totalStudents, presentStudents };
+export function registerAttendanceRoutes(app: Express) {
+  // -------------------- Helper --------------------
+async function mapStudentsWithAttendance(sessionId: string, classId?: string) {
+  let students: (Student & { user: User })[] = [];
+  if (classId) {
+    students = await storage.getClassStudents(classId);
   }
 
-  app.get("/api/dashboard/stats", async (_req: Request, res: Response) => {
-    try {
-      const students = await storage.getStudents();
-      const teachers = await storage.getTeachers();
-      const classes = await storage.getClasses();
-      const sessions = await storage.getAttendanceSessions();
+  const attendanceRecords = await storage.getAttendanceRecords(sessionId);
 
-      const today = new Date().toDateString();
-      const todaySessions = sessions.filter(
-        s => s.date && new Date(s.date).toDateString() === today
-      );
+  return students.map((s) => {
+    const record = attendanceRecords.find(r => r.studentId === s.id); // match DB PK
 
-      // Calculate today's attendance
-      let totalExpectedToday = 0;
-      let totalPresentToday = 0;
-
-      for (const session of todaySessions) {
-        if (!session.id) continue;
-        const { totalStudents, presentStudents } = await getSessionAttendance(
-  session.id,
-  session.classId ?? undefined
-);
-
-        totalExpectedToday += totalStudents;
-        totalPresentToday += presentStudents;
-      }
-
-      const todayAttendance = totalExpectedToday > 0 ? totalPresentToday / totalExpectedToday : 0;
-
-      // Calculate accuracy across all sessions
-      let totalConfidence = 0;
-      let totalCount = 0;
-
-      for (const session of sessions) {
-        const recognitionResults = await storage.getRecognitionResults(session.id);
-        const validResults = recognitionResults.filter(r => typeof r.confidence === "number" && !isNaN(r.confidence));
-        const sessionConfidence = validResults.reduce((sum, r) => sum + r.confidence, 0);
-        if (validResults.length > 0) {
-          totalConfidence += sessionConfidence / validResults.length;
-          totalCount++;
-        }
-      }
-
-      const accuracy = totalCount > 0 ? totalConfidence / totalCount : 0;
-
-      res.json({
-        totalStudents: students.length,
-        totalTeachers: teachers.length,
-        totalClasses: classes.length,
-        activeClasses: classes.filter(c => c.isActive).length,
-        todayAttendance,   // number 0–1
-        todayClassesCount: todaySessions.length,
-        accuracy,          // number 0–1
-        totalSessions: sessions.length,
-        completedSessions: sessions.filter(s => s.status === "completed").length,
-        avgStudentsPerClass: classes.length ? Math.round(students.length / classes.length) : 0,
-      });
-    } catch (error) {
-      console.error("Dashboard stats error:", error);
-      res.status(500).json({ message: "Failed to fetch dashboard stats" });
-    }
+    return {
+      id: s.id,              // DB primary key
+      studentId: s.studentId, // admission/roll number for frontend/logs
+      name: s.user?.name || s.name || "Unknown",
+      recognized: record?.isPresent ?? false,
+      confidence: record?.confidence ?? 0,
+    };
   });
 }
+
+
+
+  // -------------------- Routes --------------------
+
+  // Get all attendance sessions with full student info
+  app.get("/api/attendance-sessions", async (_req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getAttendanceSessions();
+
+      const sessionsWithStudents = await Promise.all(
+        sessions.map(async (session) => {
+          const students = await mapStudentsWithAttendance(session.id, session.classId ?? undefined);
+          return {
+            ...session,
+            students,
+          };
+        })
+      );
+
+      res.json(sessionsWithStudents);
+    } catch (error) {
+      console.error("Error fetching attendance sessions:", error);
+      res.status(500).json({ message: "Failed to fetch attendance sessions" });
+    }
+  });
+
+  // Get single session by ID with full student info
+  app.get("/api/attendance-sessions/:id", async (req: Request, res: Response) => {
+    try {
+      const session = await storage.getAttendanceSession(req.params.id);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const students = await mapStudentsWithAttendance(session.id, session.classId ?? undefined);
+
+      res.json({ ...session, students });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch session" });
+    }
+  });
+
+  // Create attendance session
+  app.post("/api/attendance-sessions", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertAttendanceSessionSchema.parse(req.body);
+      const session = await storage.createAttendanceSession({
+        classId: validatedData.classId ?? null,
+        date: validatedData.date ?? new Date(),
+      });
+      res.status(201).json(session);
+    } catch (error) {
+      if (error instanceof z.ZodError)
+        return res.status(400).json({ message: "Invalid session data", errors: error.errors });
+      console.error(error);
+      res.status(500).json({ message: "Failed to create session" });
+    }
+  });
+
+  // Get attendance records for a session (raw records)
+  app.get("/api/attendance-sessions/:id/records", async (req: Request, res: Response) => {
+    try {
+      const records = await storage.getAttendanceRecords(req.params.id);
+      res.json(records ?? []);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Failed to fetch attendance records" });
+    }
+  });
+
+  // Detailed sessions for frontend summary
+  app.get("/api/attendance-sessions/detailed", async (_req: Request, res: Response) => {
+    try {
+      const sessions = await storage.getAttendanceSessions();
+
+      const detailedSessions = await Promise.all(
+        sessions.map(async (session) => {
+          const students = await mapStudentsWithAttendance(session.id, session.classId ?? undefined);
+
+          const cls = session.classId ? await storage.getClass(session.classId) : null;
+          return {
+            ...session,
+            students,
+            class: cls ? { name: cls.name, code: cls.code } : null,
+          };
+        })
+      );
+
+      res.json(detailedSessions);
+    } catch (error) {
+      console.error("Detailed sessions error:", error);
+      res.status(500).json({ message: "Failed to fetch detailed sessions" });
+    }
+  });
+
+  // Get full teacher report
+  app.get("/api/teacher/:userId/report", async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const report = await storage.getTeacherReport(userId);
+
+      if (!report) {
+        return res.status(404).json({ message: "Teacher not found or has no classes" });
+      }
+
+      res.json(report);
+    } catch (error) {
+      console.error("Teacher report error:", error);
+      res.status(500).json({ message: "Failed to fetch teacher report" });
+    }
+  });
+} 

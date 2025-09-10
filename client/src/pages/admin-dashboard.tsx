@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/admin/sidebar";
 import Header from "@/components/admin/header";
-import StatsCards from "@/components/admin/stats-cards";
+import StatsCards from "@/components/stats/stats-cards";
 import RecentUsers from "@/components/admin/recent-users";
 import CreateTeacherModal from "@/components/admin/create-teacher-modal";
 import CreateStudentModal from "@/components/admin/create-student-modal";
@@ -46,15 +46,8 @@ export default function AdminDashboard() {
   }, [setLocation]);
 
   // ----------------- Queries -----------------
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/dashboard/stats"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/dashboard/stats");
-      return await response.json();
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
+  
+  // No need for separate stats query - StatsCards component handles this internally
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users"],
     queryFn: async () => {
@@ -73,8 +66,7 @@ export default function AdminDashboard() {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-
-  if (statsLoading || usersLoading) {
+  if (usersLoading) {
     return (
       <div className="flex h-screen bg-slate-50">
         <Sidebar currentUser={currentUser} />
@@ -99,13 +91,6 @@ export default function AdminDashboard() {
     );
   }
 
-  const dashboardStats = {
-    totalTeachers: stats?.totalTeachers || 0,
-    totalStudents: stats?.totalStudents || 0,
-    activeClasses: stats?.activeClasses || 0,
-    systemHealth: stats?.accuracy || "99.8%",
-  };
-
   return (
     <div className="flex h-screen bg-slate-50">
       <Sidebar currentUser={currentUser} />
@@ -119,13 +104,16 @@ export default function AdminDashboard() {
         />
 
         <main className="flex-1 overflow-y-auto p-6">
-          <StatsCards stats={dashboardStats} />
+          {/* StatsCards component handles its own data fetching */}
+          <div className="mb-6">
+            <StatsCards userRole="admin" />
+          </div>
+          
           <div className="gap-6">
             <RecentUsers
               users={users}
               onViewAll={() => setLocation("/admin/users")}
             />
-            
           </div>
         </main>
       </div>
@@ -144,16 +132,15 @@ export default function AdminDashboard() {
         onClose={() => setShowCreateAdmin(false)}
       />
       <CredentialModal
-  open={showCredentialModal}
-  onClose={() => setShowCredentialModal(false)}
-  selectedUsers={users}
-  onSend={(data) => {
-    console.log("Sending credentials to selected users:", data);
-    toast({ title: "Credentials sent", description: "Check console for details" });
-    setShowCredentialModal(false);
-  }}
-/>
-
+        open={showCredentialModal}
+        onClose={() => setShowCredentialModal(false)}
+        selectedUsers={users}
+        onSend={(data) => {
+          console.log("Sending credentials to selected users:", data);
+          toast({ title: "Credentials sent", description: "Check console for details" });
+          setShowCredentialModal(false);
+        }}
+      />
     </div>
   );
 }

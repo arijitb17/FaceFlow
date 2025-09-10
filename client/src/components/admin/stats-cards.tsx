@@ -5,7 +5,7 @@ interface StatsCardsProps {
     totalTeachers: number;
     totalStudents: number;
     activeClasses: number;
-    systemHealth: string;
+    systemHealth: number; // <-- change to number
     monthlyTeacherChange?: number;
     monthlyStudentChange?: number;
     monthlyClassesChange?: number;
@@ -24,7 +24,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
       changeLabel: "this month",
     },
     {
-      title: "Total Students", 
+      title: "Total Students",
       value: stats.totalStudents,
       icon: GraduationCap,
       bgColor: "bg-primary/10",
@@ -43,7 +43,7 @@ export default function StatsCards({ stats }: StatsCardsProps) {
     },
     {
       title: "System Health",
-      value: stats.systemHealth || "99.8%",
+      value: stats.systemHealth,
       icon: Activity,
       bgColor: "bg-green-100",
       iconColor: "text-green-600",
@@ -62,7 +62,11 @@ export default function StatsCards({ stats }: StatsCardsProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">{card.title}</p>
-                <p className="text-3xl font-bold text-slate-900">{card.value}</p>
+                <p className="text-3xl font-bold text-slate-900">
+                  {card.title === "System Health"
+                    ? card.value.toFixed(1) + "%" // e.g., 99.8%
+                    : card.value}
+                </p>
               </div>
               <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center`}>
                 <Icon className={`w-6 h-6 ${card.iconColor}`} />

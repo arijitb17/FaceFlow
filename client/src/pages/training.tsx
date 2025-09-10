@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
-import StatsCards from "@/components/stats/stats-cards";
+import StatsCards from "@/components/stats/stats-cards"; // Fixed import
 import BatchProcessingModal from "@/components/attendance/batch-processing-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,8 @@ export default function ModelTraining() {
   const [showModal, setShowModal] = useState(false);
   const [batchResults, setBatchResults] = useState<ProcessingResults | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "teacher" | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchUser() {
@@ -55,10 +56,12 @@ export default function ModelTraining() {
         const user = await res.json();
         setUserName(user.name || "Guest");
         setUserRole(user.role || "teacher");
+        setUserId(user.id || null);
       } catch (err) {
         console.error("Error fetching user:", err);
         setUserName("Guest");
         setUserRole("teacher");
+        setUserId(null);
       }
     }
     fetchUser();
@@ -181,17 +184,6 @@ export default function ModelTraining() {
   const untrainedStudents = studentsWithPhotos.filter(s => !s.isTrainingComplete);
   const trainedStudents = students.filter(s => s.isTrainingComplete);
 
-  // Stats for cards - now based on teacher's students
-  const stats = {
-    totalStudents: students.length,
-    todayAttendance: 0,
-    activeClasses: studentsWithPhotos.length,
-    accuracy: trainedStudents.length / (students.length || 1),
-    totalSessions: 0,
-    completedSessions: trainedStudents.length,
-    avgStudentsPerClass: students.length / (studentsWithPhotos.length || 1),
-  };
-
   // Demo/test handler
   const handleBatchProcessingComplete = () => {
     if (studentsWithPhotos.length === 0) return;
@@ -227,7 +219,13 @@ export default function ModelTraining() {
           userName={userName ?? "Loading..."} 
         />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          <StatsCards stats={stats} />
+          {/* Updated to use proper StatsCards component */}
+          <div className="mb-6">
+            <StatsCards
+              userRole={userRole}
+              userId={userRole === "teacher" ? userId ?? undefined : undefined}
+            />
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
             {/* Left Column */}

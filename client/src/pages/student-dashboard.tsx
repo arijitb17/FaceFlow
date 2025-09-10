@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload } from "lucide-react";
+import { LogOut,Upload } from "lucide-react";
 import type { Class } from "@shared/schema";
 
 interface AttendanceRecord {
@@ -125,7 +125,8 @@ export default function StudentDashboard() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl lg:text-2xl font-semibold text-gray-900">Student Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>Logout</Button>
+        <Button variant="outline" onClick={handleLogout} className="hover:bg-red-500 hover:text-white"><LogOut className="w-5 h-5 mr-3" />
+              Logout</Button>
       </header>
 
       <main className="p-4 lg:p-6 max-w-6xl mx-auto space-y-6">

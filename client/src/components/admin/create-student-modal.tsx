@@ -104,15 +104,6 @@ export default function CreateStudentModal({ open, onClose }: CreateStudentModal
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Create Student Account</DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600"
-              data-testid="button-close-student-modal"
-            >
-              <X className="w-5 h-5" />
-            </Button>
           </div>
         </DialogHeader>
 

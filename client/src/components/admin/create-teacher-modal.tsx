@@ -139,14 +139,6 @@ export default function CreateTeacherModal({
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Create Teacher Account</DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-5 h-5" />
-            </Button>
           </div>
         </DialogHeader>
 

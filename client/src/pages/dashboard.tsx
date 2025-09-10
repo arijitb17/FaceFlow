@@ -12,19 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { User, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 
-type Stats = {
-  totalStudents: number;
-  totalTeachers: number;
-  totalClasses: number;
-  activeClasses: number;
-  todayAttendance: number; 
-  todayClassesCount: number;
-  accuracy: number; 
-  totalSessions: number;
-  completedSessions: number;
-  avgStudentsPerClass: number;
-};
-
 type Class = {
   id: string;
   name: string;
@@ -45,6 +32,8 @@ type Session = {
 
 export default function Dashboard() {
   const [userName, setUserName] = useState("Guest");
+  const [userRole, setUserRole] = useState<"admin" | "teacher" | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [batchResults, setBatchResults] = useState<any>(null);
@@ -56,28 +45,19 @@ export default function Dashboard() {
         const res = await apiRequest("GET", "/api/auth/me");
         if (!res.ok) throw new Error("Failed to fetch user");
         const user = await res.json();
+
         setUserName(user.name || "Guest");
+        setUserRole(user.role || null);
+        setUserId(user.id || null);
       } catch (err) {
         console.error(err);
         setUserName("Guest");
+        setUserRole(null);
+        setUserId(null);
       }
     }
     fetchUser();
   }, []);
-
-  // Fetch stats
-  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<Stats>({
-    queryKey: ["/api/dashboard/stats"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/dashboard/stats");
-      if (!res.ok) throw new Error("Failed to fetch stats");
-      return res.json();
-    },
-  });
-
-  // Format stats for StatsCards
-const formattedStats = stats ?? null;
-
 
   // Fetch classes
   const { data: classes = [], isLoading: classesLoading, isError: classesError } = useQuery<Class[]>({
@@ -143,14 +123,17 @@ const formattedStats = stats ?? null;
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Stats Cards */}
           <div className="mb-6 lg:mb-8">
-            {statsLoading ? (
-              <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => <div key={i} className="bg-gray-200 h-32 rounded-xl"></div>)}
-              </div>
-            ) : statsError || !formattedStats ? (
-              <div className="text-red-500">Failed to load stats</div>
+            {userRole ? (
+              <StatsCards
+                userRole={userRole}
+                userId={userRole === "teacher" ? userId ?? undefined : undefined}
+              />
             ) : (
-              <StatsCards stats={formattedStats} />
+              <div className="animate-pulse grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-gray-200 h-32 rounded-xl"></div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -210,7 +193,7 @@ const formattedStats = stats ?? null;
                             {classData?.name || `Session ${session.id.slice(0, 8)}`}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {session.totalStudentsRecognized || 0} students • 
+                            {session.totalStudentsRecognized || 0} students •
                             {((session.averageConfidence || 0) * 100).toFixed(1)}% confidence
                           </p>
                         </div>

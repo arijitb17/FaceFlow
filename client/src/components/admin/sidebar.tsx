@@ -81,7 +81,7 @@ export default function Sidebar({ currentUser }: SidebarProps) {
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className="text-slate-400 hover:text-slate-600"
+            className="text-slate-700 hover:text-white hover:bg-red-500"
             data-testid="button-logout"
           >
             <LogOut className="w-4 h-4" />

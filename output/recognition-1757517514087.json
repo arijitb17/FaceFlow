@@ -1,0 +1,132 @@
+{
+  "totalFaces": 10,
+  "recognizedStudents": [
+    "tanmay_biswas",
+    "demo_student"
+  ],
+  "averageConfidence": 0.6770494461059571,
+  "detections": [
+    {
+      "imageIndex": 0,
+      "faceIndex": 0,
+      "bbox": [
+        278,
+        389,
+        425,
+        570
+      ],
+      "confidence": 0.6310708522796631,
+      "studentId": "tanmay_biswas"
+    },
+    {
+      "imageIndex": 0,
+      "faceIndex": 1,
+      "bbox": [
+        753,
+        361,
+        938,
+        599
+      ],
+      "confidence": 0.7484383583068848,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 1,
+      "faceIndex": 0,
+      "bbox": [
+        288,
+        387,
+        430,
+        569
+      ],
+      "confidence": 0.6040121912956238,
+      "studentId": "tanmay_biswas"
+    },
+    {
+      "imageIndex": 1,
+      "faceIndex": 1,
+      "bbox": [
+        751,
+        359,
+        939,
+        600
+      ],
+      "confidence": 0.7388525605201721,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 2,
+      "faceIndex": 0,
+      "bbox": [
+        292,
+        387,
+        434,
+        571
+      ],
+      "confidence": 0.5782013535499573,
+      "studentId": "tanmay_biswas"
+    },
+    {
+      "imageIndex": 2,
+      "faceIndex": 1,
+      "bbox": [
+        753,
+        365,
+        939,
+        599
+      ],
+      "confidence": 0.7369736433029175,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 3,
+      "faceIndex": 0,
+      "bbox": [
+        284,
+        388,
+        428,
+        570
+      ],
+      "confidence": 0.5970532298088074,
+      "studentId": "tanmay_biswas"
+    },
+    {
+      "imageIndex": 3,
+      "faceIndex": 1,
+      "bbox": [
+        751,
+        363,
+        941,
+        600
+      ],
+      "confidence": 0.7530644536018372,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 4,
+      "faceIndex": 0,
+      "bbox": [
+        291,
+        386,
+        435,
+        573
+      ],
+      "confidence": 0.6407247185707092,
+      "studentId": "tanmay_biswas"
+    },
+    {
+      "imageIndex": 4,
+      "faceIndex": 1,
+      "bbox": [
+        754,
+        363,
+        938,
+        601
+      ],
+      "confidence": 0.742103099822998,
+      "studentId": "demo_student"
+    }
+  ],
+  "processedImages": 5,
+  "timestamp": "2025-09-10T15:18:34.087Z"
+}
