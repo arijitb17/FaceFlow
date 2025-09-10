@@ -6,11 +6,11 @@ FROM node:20-alpine AS client-build
 # Set working directory
 WORKDIR /app
 
-# Copy client package.json and Vite config
-COPY client/package*.json client/vite.config.ts ./client/
+# Copy client package.json
+COPY client/package*.json ./client/
 
-# Copy root tsconfig.json (needed for Vite/TypeScript)
-COPY tsconfig.json ./tsconfig.json
+# Copy root tsconfig.json and vite.config.ts
+COPY tsconfig.json vite.config.ts ./
 
 # Install client dependencies
 RUN cd client && npm install
