@@ -6,12 +6,13 @@ WORKDIR /app
 # Copy package files
 COPY package*.json tsconfig.json vite.config.ts ./
 
-# Install all dependencies
+# Install all dependencies (dev + prod)
 RUN npm install
 
 # Copy server and client code
 COPY server ./server
 COPY client ./client
+COPY shared ./shared
 
 # Build frontend + backend
 RUN npm run build
@@ -28,10 +29,10 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/package*.json ./
 
 # Install only production dependencies
-RUN npm install 
+RUN npm install --omit=dev
 
 # Expose your app port
 EXPOSE 5000
 
-# Start the server
-CMD ["npm", "run", "start"]
+# Start the server (without cross-env)
+CMD ["node", "dist/index.js"]
