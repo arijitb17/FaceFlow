@@ -1,40 +1,49 @@
+# =========================
 # Stage 1: Build Stage
+# =========================
 FROM node:20-alpine AS build
 
+# Set working directory
 WORKDIR /app
 
-# Copy root package files and tsconfig/vite config
-COPY package*.json tsconfig.json vite.config.ts ./
+# Copy package.json and lockfile
+COPY package*.json ./
 
-# Install all dependencies (dev + prod) for building
+# Install dependencies (both server & client)
 RUN npm install
 
-# Copy server and client code
+# Copy root configs
+COPY tsconfig.json vite.config.ts ./
+
+# Copy server & client code
 COPY server ./server
 COPY client ./client
 
-# Build client using Vite
-RUN npm run build
+# Build client
+RUN npm --prefix client run build
 
-# Bundle server using esbuild
-RUN esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist
+# Bundle server with esbuild using npx
+RUN npx esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist
 
+# =========================
 # Stage 2: Production Stage
-FROM node:20-alpine
+# =========================
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy built server from build stage
+# Copy production build from previous stage
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/client/dist ./dist/public
 
 # Copy package.json for production dependencies
-COPY --from=build /app/package*.json ./
+COPY package*.json ./
 
 # Install only production dependencies
 RUN npm install --omit=dev
 
-# Expose server port
-EXPOSE 3000
+# Expose port
+EXPOSE 5000
 
-# Start the server
-CMD ["npm", "run", "start"]
+# Start server
+CMD ["node", "dist/index.js"]
