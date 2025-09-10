@@ -1,4 +1,4 @@
-import "dotenv/config"; // load .env variables
+import "dotenv/config"; // loads process.env from .env
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -6,12 +6,9 @@ import http from "http";
 import path from "path";
 
 const app = express();
-
 // Allow large payloads (e.g., 50 MB)
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
-
-// Static datasets
 app.use(
   "/datasets",
   express.static(path.join(process.cwd(), "dataset"))
@@ -21,13 +18,15 @@ app.use(
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json.bind(res);
-  res.json = function (bodyJson: any) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson(bodyJson);
-  };
+const originalResJson = res.json.bind(res);
+
+res.json = function (bodyJson: any) {
+  capturedJsonResponse = bodyJson;
+  return originalResJson(bodyJson);
+};
+
 
   res.on("finish", () => {
     const duration = Date.now() - start;
@@ -36,7 +35,9 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
-      if (logLine.length > 200) logLine = logLine.slice(0, 199) + "…";
+      if (logLine.length > 200) {
+        logLine = logLine.slice(0, 199) + "…";
+      }
       log(logLine);
     }
   });
@@ -45,10 +46,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // 1️⃣ Register API routes
+  // 1. Register routes
   await registerRoutes(app);
 
-  // 2️⃣ Error handler
+  // 2. Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -56,18 +57,18 @@ app.use((req, res, next) => {
     console.error(err);
   });
 
-  // 3️⃣ Create HTTP server
+  // 3. Create HTTP server
   const server = http.createServer(app);
 
-  // 4️⃣ Serve frontend
+  // 4. Attach vite/static serving
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  // 5️⃣ Start listening
-  const port = parseInt(process.env.PORT || "8080", 10);
+  // 5. Start listening
+  const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(port, "0.0.0.0", () => {
     log(`🚀 API + client serving on http://0.0.0.0:${port}`);
   });

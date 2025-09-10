@@ -15,16 +15,20 @@ export function log(message: string, source = "express") {
     second: "2-digit",
     hour12: true,
   });
+
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-// Development: Vite middleware for HMR
 export async function setupVite(app: Express, server: Server) {
+  const serverOptions = {
+    middlewareMode: true,
+    hmr: { server },
+    allowedHosts: true as const,
+  };
+
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
-    server: { middlewareMode: true, hmr: { server }, allowedHosts: true },
-    appType: "custom",
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -32,46 +36,51 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
     },
+    server: serverOptions,
+    appType: "custom",
   });
 
   app.use(vite.middlewares);
+  app.use("*", async (req, res, next) => {
+    const url = req.originalUrl;
 
-app.use("*", async (req, res, next) => {
-  const url = req.originalUrl;
+    try {
+      const clientTemplate = path.resolve(
+        import.meta.dirname,
+        "..",
+        "client",
+        "index.html",
+      );
 
-  try {
-    const clientTemplate = path.join(process.cwd(), "client", "index.html");
-
-    let template = await fs.promises.readFile(clientTemplate, "utf-8");
-    template = template.replace(
-      `src="/src/main.tsx"`,
-      `src="/src/main.tsx?v=${nanoid()}"`
-    );
-
-    const page = await vite.transformIndexHtml(url, template);
-    res.status(200).set({ "Content-Type": "text/html" }).end(page);
-  } catch (e) {
-    vite.ssrFixStacktrace(e as Error);
-    next(e);
-  }
-});
-
+      // always reload the index.html file from disk incase it changes
+      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`,
+      );
+      const page = await vite.transformIndexHtml(url, template);
+      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+    } catch (e) {
+      vite.ssrFixStacktrace(e as Error);
+      next(e);
+    }
+  });
 }
 
-// Production: Serve built frontend
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(process.cwd(), "dist", "client");
+  const distPath = path.resolve(process.cwd(), "dist/public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, run npm run build first`
+      `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
 
   app.use(express.static(distPath));
 
-  // SPA fallback
-  app.get("*", (_req, res) => {
+  // Fallback to index.html for SPA routing
+  app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
+
