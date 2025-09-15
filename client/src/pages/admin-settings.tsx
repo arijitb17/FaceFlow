@@ -1,4 +1,4 @@
-// AdminSettings.tsx
+// ===== ADMIN SETTINGS - Mobile Fixed =====
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Save, Key, Eye, EyeOff } from "lucide-react";
+import { RefreshCw, Save, Key, Eye, EyeOff, Menu } from "lucide-react";
 import Sidebar from "@/components/admin/sidebar";
 
 const apiRequest = async (method: string, url: string, body?: any) => {
@@ -27,8 +27,6 @@ const apiRequest = async (method: string, url: string, body?: any) => {
     ...(body ? { body: JSON.stringify(body) } : {}),
   };
 
-  console.log("➡️ API Request", method, url, body); // DEBUG
-
   const res = await fetch(url, options);
   const text = await res.text();
 
@@ -38,8 +36,6 @@ const apiRequest = async (method: string, url: string, body?: any) => {
   } catch {
     data = text;
   }
-
-  console.log("⬅️ API Response", res.status, data); // DEBUG
 
   if (!res.ok) {
     const message =
@@ -68,7 +64,7 @@ interface AdminProfile {
 export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editValues, setEditValues] = useState({ name: "", email: "" });
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -81,7 +77,6 @@ export default function AdminSettings() {
     confirm: false,
   });
 
-  // ✅ Fetch profile
   const { data: profile, isLoading } = useQuery<AdminProfile>({
     queryKey: ["me"],
     queryFn: () => apiRequest("GET", "/api/auth/me"),
@@ -89,7 +84,6 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (profile) {
-      console.log("📄 Loaded profile", profile); // DEBUG
       setEditValues({
         name: profile.name ?? "",
         email: profile.email ?? "",
@@ -97,12 +91,10 @@ export default function AdminSettings() {
     }
   }, [profile]);
 
-  // ✅ Update profile - Fixed to send correct field names
   const updateProfile = useMutation({
     mutationFn: async () => {
       const payload: any = {};
       
-      // Only send fields that have actually changed
       if (editValues.name !== profile?.name && editValues.name.trim()) {
         payload.name = editValues.name;
       }
@@ -110,16 +102,13 @@ export default function AdminSettings() {
         payload.email = editValues.email;
       }
 
-      // Don't send empty payload
       if (Object.keys(payload).length === 0) {
         throw new Error("No changes to save");
       }
 
-      console.log("📤 Sending profile update", payload); // DEBUG
       return await apiRequest("PATCH", "/api/auth/me", payload);
     },
     onSuccess: (data) => {
-      console.log("✅ Update success:", data); // DEBUG
       toast({ 
         title: "Success", 
         description: "Profile updated successfully" 
@@ -127,7 +116,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (err: any) => {
-      console.error("❌ Update error:", err); // DEBUG
       toast({
         title: "Error",
         description: err.message || "Failed to update profile",
@@ -136,7 +124,6 @@ export default function AdminSettings() {
     },
   });
 
-  // ✅ Change password - Fixed field names
   const changePassword = useMutation({
     mutationFn: async () => {
       if (!passwordData.currentPassword || !passwordData.newPassword) {
@@ -153,14 +140,12 @@ export default function AdminSettings() {
 
       const payload = {
         currentPassword: passwordData.currentPassword,
-        password: passwordData.newPassword, // Backend expects 'password', not 'newPassword'
+        password: passwordData.newPassword,
       };
       
-      console.log("📤 Sending password change"); // DEBUG (don't log passwords)
       return await apiRequest("PATCH", "/api/auth/me", payload);
     },
     onSuccess: (data) => {
-      console.log("✅ Password change success"); // DEBUG
       toast({ 
         title: "Success", 
         description: "Password changed successfully" 
@@ -173,7 +158,6 @@ export default function AdminSettings() {
       queryClient.invalidateQueries({ queryKey: ["me"] });
     },
     onError: (err: any) => {
-      console.error("❌ Password change error:", err); // DEBUG
       toast({
         title: "Error",
         description: err.message || "Failed to change password",
@@ -182,7 +166,6 @@ export default function AdminSettings() {
     },
   });
 
-  // Validation for save button
   const hasProfileChanges = 
     (editValues.name !== profile?.name && editValues.name.trim()) ||
     (editValues.email !== profile?.email && editValues.email.trim());
@@ -196,18 +179,36 @@ export default function AdminSettings() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
-          <h1 className="text-2xl font-semibold">Admin Settings</h1>
-          <p className="text-slate-600">Update your profile and password</p>
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="bg-white shadow-sm border-b border-slate-200 px-4 sm:px-6 py-4">
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden p-2"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-semibold truncate">Admin Settings</h1>
+              <p className="text-xs sm:text-base text-slate-600 hidden sm:block">Update your profile and password</p>
+            </div>
+          </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6 space-y-6">
-          {/* ✅ Profile */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
+          {/* Profile */}
           <Card>
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Profile Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -243,13 +244,14 @@ export default function AdminSettings() {
                 />
               </div>
 
-              <div className="text-sm text-slate-600">
+              <div className="text-sm text-slate-600 p-3 bg-slate-50 rounded-md">
                 <strong>Username:</strong> {profile?.username}
               </div>
 
               <Button
                 onClick={() => updateProfile.mutate()}
                 disabled={updateProfile.isPending || !hasProfileChanges || isLoading}
+                className="w-full sm:w-auto"
               >
                 {updateProfile.isPending ? (
                   <RefreshCw className="w-4 h-4 animate-spin mr-2" />
@@ -261,10 +263,10 @@ export default function AdminSettings() {
             </CardContent>
           </Card>
 
-          {/* ✅ Password */}
+          {/* Password */}
           <Card>
             <CardHeader>
-              <CardTitle>Change Password</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Change Password</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
@@ -292,6 +294,7 @@ export default function AdminSettings() {
                         }))
                       }
                       placeholder={`Enter ${field.label.toLowerCase()}`}
+                      className="pr-12"
                     />
                     <Button
                       type="button"
@@ -316,9 +319,9 @@ export default function AdminSettings() {
               ))}
 
               {/* Password requirements */}
-              <div className="text-sm text-slate-600">
-                <p>Password requirements:</p>
-                <ul className="list-disc list-inside ml-2">
+              <div className="text-sm text-slate-600 p-3 bg-slate-50 rounded-md">
+                <p className="font-medium mb-1">Password requirements:</p>
+                <ul className="list-disc list-inside ml-2 space-y-1">
                   <li>At least 8 characters long</li>
                   <li>New password must match confirmation</li>
                 </ul>
@@ -327,6 +330,7 @@ export default function AdminSettings() {
               <Button
                 onClick={() => changePassword.mutate()}
                 disabled={changePassword.isPending || !isPasswordValid}
+                className="w-full sm:w-auto"
               >
                 {changePassword.isPending ? (
                   <RefreshCw className="w-4 h-4 animate-spin mr-2" />

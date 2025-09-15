@@ -6,126 +6,126 @@
     "tanmay_biswas",
     "demo_student"
   ],
-  "averageConfidence": 0.6770494461059571,
+  "averageConfidence": 0.5714788317680359,
   "results": [
     {
       "imageIndex": 0,
       "faceIndex": 0,
       "bbox": [
-        278,
-        389,
-        425,
-        570
+        450,
+        230,
+        510,
+        309
       ],
-      "confidence": 0.6310708522796631,
+      "confidence": 0.5616821050643921,
       "studentId": "tanmay_biswas"
     },
     {
       "imageIndex": 0,
       "faceIndex": 1,
       "bbox": [
-        753,
-        361,
-        938,
-        599
+        80,
+        150,
+        172,
+        257
       ],
-      "confidence": 0.7484383583068848,
+      "confidence": 0.6067505478858948,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 1,
       "faceIndex": 0,
       "bbox": [
-        288,
-        387,
-        430,
-        569
+        452,
+        230,
+        512,
+        308
       ],
-      "confidence": 0.6040121912956238,
+      "confidence": 0.5913918614387512,
       "studentId": "tanmay_biswas"
     },
     {
       "imageIndex": 1,
       "faceIndex": 1,
       "bbox": [
-        751,
-        359,
-        939,
-        600
+        81,
+        153,
+        172,
+        257
       ],
-      "confidence": 0.7388525605201721,
+      "confidence": 0.6001741886138916,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 2,
       "faceIndex": 0,
       "bbox": [
-        292,
-        387,
-        434,
-        571
+        453,
+        229,
+        514,
+        310
       ],
-      "confidence": 0.5782013535499573,
+      "confidence": 0.5091944336891174,
       "studentId": "tanmay_biswas"
     },
     {
       "imageIndex": 2,
       "faceIndex": 1,
       "bbox": [
-        753,
-        365,
-        939,
-        599
+        81,
+        152,
+        172,
+        258
       ],
-      "confidence": 0.7369736433029175,
+      "confidence": 0.5947190523147583,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 3,
       "faceIndex": 0,
       "bbox": [
-        284,
-        388,
-        428,
-        570
+        453,
+        229,
+        514,
+        310
       ],
-      "confidence": 0.5970532298088074,
+      "confidence": 0.516997218132019,
       "studentId": "tanmay_biswas"
     },
     {
       "imageIndex": 3,
       "faceIndex": 1,
       "bbox": [
-        751,
-        363,
-        941,
-        600
+        81,
+        154,
+        173,
+        258
       ],
-      "confidence": 0.7530644536018372,
+      "confidence": 0.6003180742263794,
       "studentId": "demo_student"
     },
     {
       "imageIndex": 4,
       "faceIndex": 0,
       "bbox": [
-        291,
-        386,
-        435,
-        573
+        455,
+        230,
+        515,
+        310
       ],
-      "confidence": 0.6407247185707092,
+      "confidence": 0.5477408766746521,
       "studentId": "tanmay_biswas"
     },
     {
       "imageIndex": 4,
       "faceIndex": 1,
       "bbox": [
-        754,
-        363,
-        938,
-        601
+        82,
+        155,
+        173,
+        259
       ],
-      "confidence": 0.742103099822998,
+      "confidence": 0.5858199596405029,
       "studentId": "demo_student"
     }
   ]

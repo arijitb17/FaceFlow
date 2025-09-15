@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Key, Eye, EyeOff, RefreshCw, User as UserIcon, Shield } from "lucide-react";
 import Sidebar from "@/components/layout/sidebar";
+import Header from "@/components/layout/header";
 
 const apiRequest = async (method: string, url: string, body?: any) => {
   const token = localStorage.getItem("authToken") ?? "";
@@ -36,11 +37,25 @@ interface TeacherProfile {
 export default function TeacherSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [editValues, setEditValues] = useState({ name: "", email: "" });
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
-
+  const [userName, setUserName] = useState<string | null>(null);
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await apiRequest("GET", "/api/auth/me");
+        if (!res.ok) throw new Error("Failed to fetch user");
+        const user = await res.json();
+        setUserName(user.name || "Guest");
+      } catch (err) {
+        console.error("Error fetching user:", err);
+        setUserName("Guest");
+      }
+    }
+    fetchUser();
+  }, []);
   const { data: profile, isLoading } = useQuery<TeacherProfile>({
     queryKey: ["me"],
     queryFn: () => apiRequest("GET", "/api/auth/me"),
@@ -99,12 +114,14 @@ export default function TeacherSettings() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
-          <h1 className="text-2xl font-semibold">Teacher Settings</h1>
-          <p className="text-slate-600">Update your profile and password</p>
-        </header>
+        <Header
+                  title="Settings"
+                  subtitle="View your profile"
+                  onMenuClick={() => setIsSidebarOpen(true)}
+                  userName={userName ?? "Loading..."} 
+                />
 
         <main className="flex-1 overflow-auto p-6 space-y-6">
           {/* Profile */}

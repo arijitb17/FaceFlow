@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Download, Search, Calendar as CalendarIcon, BarChart3, Users, TrendingUp, FileText, Filter, Eye, List } from "lucide-react";
+import { Download, Search, Calendar as CalendarIcon, BarChart3, Users, TrendingUp, FileText, Filter, Eye, List, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +59,7 @@ export default function Reports() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [userName, setUserName] = useState<string | null>(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function fetchUser() {
@@ -193,7 +194,6 @@ export default function Reports() {
     }
   };
 
-  // Function to export individual session with student details (each row = one student)
   const exportSessionToCSV = (session: AttendanceSession) => {
     const cls = classes.find((c) => c.id === session.classId);
     
@@ -202,7 +202,6 @@ export default function Reports() {
       return;
     }
 
-    // Create CSV with individual student records
     const csvData = session.students.map((student, index) => ({
       "S.No": index + 1,
       "Class Name": cls?.name || "Unknown",
@@ -216,13 +215,11 @@ export default function Reports() {
       "Session Status": session.status || "Unknown"
     }));
 
-    // Convert to CSV format
     const headers = Object.keys(csvData[0]);
     const csvContent = [
       headers.join(","),
       ...csvData.map(row => 
         Object.values(row).map(value => 
-          // Properly escape CSV values that contain commas or quotes
           typeof value === 'string' && (value.includes(',') || value.includes('"')) 
             ? `"${value.replace(/"/g, '""')}"` 
             : `"${value}"`
@@ -230,7 +227,6 @@ export default function Reports() {
       )
     ].join("\n");
 
-    // Download the file
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -244,6 +240,18 @@ export default function Reports() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const toggleSessionExpansion = (sessionId: string) => {
+    setExpandedSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
   };
 
   if (sessionsLoading) {
@@ -272,19 +280,19 @@ export default function Reports() {
           onMenuClick={() => setIsSidebarOpen(true)}
           userName={userName ?? "Loading..."} 
         />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
           {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <StatCard title="Total Sessions" value={totalSessions} icon={<BarChart3 />} color="blue" />
             <StatCard title="Avg Attendance" value={averageAttendance} icon={<Users />} color="green" />
-            <StatCard title="Total Students Recognized" value={totalStudentsRecognized} icon={<TrendingUp />} color="purple" />
+            <StatCard title="Students Recognized" value={totalStudentsRecognized} icon={<TrendingUp />} color="purple" />
             <StatCard title="Avg Accuracy" value={`${(averageAccuracy * 100).toFixed(1)}%`} icon={<FileText />} color="orange" />
           </div>
 
           {/* Filters */}
           <Card className="shadow-sm border border-gray-200">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
+            <CardHeader className="pb-3 sm:pb-6">
+              <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center space-x-2">
                   <Filter className="h-5 w-5" />
                   <span>Filters</span>
@@ -293,7 +301,7 @@ export default function Reports() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowDetailedView(!showDetailedView)}
-                  className="ml-4 flex items-center space-x-2"
+                  className="flex items-center space-x-2 w-full sm:w-auto"
                 >
                   {showDetailedView ? <List className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   <span>{showDetailedView ? "Class View" : "Student Details"}</span>
@@ -301,24 +309,27 @@ export default function Reports() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <SearchFilter value={searchQuery} onChange={setSearchQuery} />
                 <ClassFilter classes={classes} selectedClass={selectedClass} setSelectedClass={setSelectedClass} />
                 <DateFilter date={selectedDate} setDate={setSelectedDate} />
                 <Button onClick={exportToCSV} disabled={!filteredSessions.length} className="w-full bg-blue-600 text-white hover:bg-blue-700">
                   <Download className="mr-2 h-4 w-4" />
-                  Export All CSV
+                  <span className="hidden sm:inline">Export All CSV</span>
+                  <span className="sm:hidden">Export CSV</span>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Reports Table */}
-          <ReportsTable 
+          {/* Reports */}
+          <ReportsContent 
             sessions={filteredSessions} 
             classes={classes} 
             showDetailedView={showDetailedView} 
             exportSessionToCSV={exportSessionToCSV}
+            expandedSessions={expandedSessions}
+            toggleSessionExpansion={toggleSessionExpansion}
           />
         </main>
       </div>
@@ -336,12 +347,14 @@ function StatCard({ title, value, icon, color }: StatCardProps) {
   };
   return (
     <Card className="shadow-sm border border-gray-200">
-      <CardContent className="p-6 flex items-center justify-between">
-        <div>
-          <p className="text-gray-600 text-sm font-medium">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
+      <CardContent className="p-3 sm:p-6 flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <p className="text-gray-600 text-xs sm:text-sm font-medium truncate">{title}</p>
+          <p className="text-xl sm:text-3xl font-bold text-gray-900 truncate">{value}</p>
         </div>
-        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>{icon}</div>
+        <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${colorClasses[color]}`}>
+          <div className="scale-75 sm:scale-100">{icon}</div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -350,10 +363,10 @@ function StatCard({ title, value, icon, color }: StatCardProps) {
 function SearchFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <Label htmlFor="search">Search</Label>
-      <div className="relative">
+      <Label htmlFor="search" className="text-sm">Search</Label>
+      <div className="relative mt-1">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input id="search" placeholder="Search..." value={value} onChange={(e) => onChange(e.target.value)} className="pl-10" />
+        <Input id="search" placeholder="Search classes..." value={value} onChange={(e) => onChange(e.target.value)} className="pl-10 text-sm" />
       </div>
     </div>
   );
@@ -362,9 +375,9 @@ function SearchFilter({ value, onChange }: { value: string; onChange: (v: string
 function ClassFilter({ classes, selectedClass, setSelectedClass }: { classes: Class[]; selectedClass: string; setSelectedClass: (v: string) => void }) {
   return (
     <div>
-      <Label>Class</Label>
+      <Label className="text-sm">Class</Label>
       <Select value={selectedClass} onValueChange={setSelectedClass}>
-        <SelectTrigger>
+        <SelectTrigger className="mt-1">
           <SelectValue placeholder="All Classes" />
         </SelectTrigger>
         <SelectContent>
@@ -382,15 +395,15 @@ function DateFilter({ date, setDate }: { date?: Date; setDate: (d?: Date) => voi
   const [showDatePicker, setShowDatePicker] = useState(false);
   return (
     <div>
-      <Label>Date</Label>
+      <Label className="text-sm">Date</Label>
       <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+            className={cn("w-full justify-start text-left font-normal mt-1 text-sm", !date && "text-muted-foreground")}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {date ? format(date, "LLL dd, yyyy") : "Pick a date"}
+            <span className="truncate">{date ? format(date, "MMM dd, yyyy") : "Pick a date"}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -401,23 +414,27 @@ function DateFilter({ date, setDate }: { date?: Date; setDate: (d?: Date) => voi
   );
 }
 
-function ReportsTable({ 
+function ReportsContent({ 
   sessions, 
   classes, 
   showDetailedView, 
-  exportSessionToCSV 
+  exportSessionToCSV,
+  expandedSessions,
+  toggleSessionExpansion
 }: { 
   sessions: AttendanceSession[]; 
   classes: Class[]; 
   showDetailedView: boolean;
   exportSessionToCSV: (session: AttendanceSession) => void;
+  expandedSessions: Set<string>;
+  toggleSessionExpansion: (sessionId: string) => void;
 }) {
   if (!sessions.length) {
     return (
       <div className="text-center py-12">
         <BarChart3 className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
-        <p className="text-gray-600">No attendance sessions match your current filters</p>
+        <p className="text-gray-600 text-sm px-4">No attendance sessions match your current filters</p>
       </div>
     );
   }
@@ -426,13 +443,88 @@ function ReportsTable({
     return (
       <Card className="shadow-sm border border-gray-200">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+          <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
             <List className="h-5 w-5" />
-            <span>Student Attendance Details ({sessions.flatMap(s => s.students || []).length} records)</span>
+            <span>Student Details ({sessions.flatMap(s => s.students || []).length})</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="p-0 sm:p-6">
+          {/* Mobile Card View */}
+          <div className="block lg:hidden">
+            <div className="space-y-3 p-3 sm:p-4">
+              {sessions.map((session) => {
+                const cls = classes.find((c) => c.id === session.classId);
+                const sessionDate = session.date ? new Date(session.date) : undefined;
+                const isExpanded = expandedSessions.has(session.id);
+                
+                return (
+                  <Card key={session.id} className="border border-gray-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-gray-900 truncate">{cls?.name || "Unknown"}</h4>
+                          <p className="text-sm text-gray-500">{cls?.code || "N/A"}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {sessionDate ? format(sessionDate, "MMM dd, yyyy HH:mm") : "N/A"}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => exportSessionToCSV(session)}
+                            className="px-2"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => toggleSessionExpansion(session.id)}
+                            className="px-2"
+                          >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm text-gray-600 mb-3">
+                        {session.students?.length || 0} students
+                      </div>
+
+                      {isExpanded && (
+                        <div className="space-y-2 border-t pt-3">
+                          {(session.students || []).map((student) => (
+                            <div key={student.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">{student.name}</p>
+                                <p className="text-xs text-gray-500">{student.studentId}</p>
+                              </div>
+                              <div className="flex items-center space-x-2 flex-shrink-0">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  student.recognized ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                                }`}>
+                                  {student.recognized ? "Present" : "Absent"}
+                                </span>
+                                {student.confidence && (
+                                  <span className="text-xs text-gray-500">
+                                    {(student.confidence * 100).toFixed(1)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full table-auto border-collapse">
               <thead className="bg-gray-50">
                 <tr>
@@ -491,17 +583,126 @@ function ReportsTable({
     );
   }
 
-  // Class-level view showing session summaries with individual session download
+  // Class-level view
   return (
     <Card className="shadow-sm border border-gray-200">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+        <CardTitle className="flex items-center space-x-2 text-sm sm:text-base">
           <BarChart3 className="h-5 w-5" />
-          <span>Class Attendance Sessions ({sessions.length})</span>
+          <span>Attendance Sessions ({sessions.length})</span>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
+      <CardContent className="p-0 sm:p-6">
+        {/* Mobile Card View */}
+        <div className="block xl:hidden">
+          <div className="space-y-3 p-3 sm:p-4">
+            {sessions.map((session) => {
+              const cls = classes.find((c) => c.id === session.classId);
+              const sessionDate = session.date ? new Date(session.date) : undefined;
+              const totalStudents = session.students?.length || 0;
+              const presentStudents = session.students?.filter(st => st.recognized).length || 0;
+              const absentStudents = totalStudents - presentStudents;
+              const attendanceRate = totalStudents > 0 ? ((presentStudents / totalStudents) * 100).toFixed(1) : "0.0";
+              
+              const recognizedStudents = session.students?.filter(st => st.recognized) || [];
+              const avgConfidence = recognizedStudents.length > 0 
+                ? recognizedStudents.reduce((sum, st) => sum + (st.confidence || 0), 0) / recognizedStudents.length 
+                : 0;
+
+              return (
+                <Card key={session.id} className="border border-gray-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium text-gray-900 truncate">{cls?.name || "Unknown"}</h4>
+                        <p className="text-sm text-gray-500">{cls?.code || "N/A"}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {sessionDate ? format(sessionDate, "MMM dd, yyyy") : "N/A"}
+                          {sessionDate && (
+                            <span className="ml-2">
+                              {format(sessionDate, "HH:mm")}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end space-y-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          session.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          session.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                          session.status === 'failed' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {session.status === 'completed' ? 'Completed' :
+                           session.status === 'processing' ? 'Processing' :
+                           session.status === 'failed' ? 'Failed' :
+                           'Unknown'}
+                        </span>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => exportSessionToCSV(session)}
+                          disabled={!session.students || session.students.length === 0}
+                          className="px-2 mt-1"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-gray-900">{totalStudents}</p>
+                        <p className="text-xs text-gray-500">Total Students</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-green-600">{presentStudents}</p>
+                        <p className="text-xs text-gray-500">Present</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-red-600">{absentStudents}</p>
+                        <p className="text-xs text-gray-500">Absent</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-blue-600">{attendanceRate}%</p>
+                        <p className="text-xs text-gray-500">Attendance</p>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                        <span>Attendance Rate</span>
+                        <span>{attendanceRate}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            parseFloat(attendanceRate) >= 80 ? 'bg-green-600' :
+                            parseFloat(attendanceRate) >= 60 ? 'bg-yellow-600' : 'bg-red-600'
+                          }`}
+                          style={{ width: `${Math.min(parseFloat(attendanceRate), 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Confidence */}
+                    {avgConfidence > 0 && (
+                      <div className="text-center">
+                        <p className="text-sm text-gray-600">
+                          Avg Confidence: <span className="font-medium">{(avgConfidence * 100).toFixed(1)}%</span>
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden xl:block overflow-x-auto">
           <table className="w-full table-auto border-collapse">
             <thead className="bg-gray-50">
               <tr>
@@ -525,7 +726,6 @@ function ReportsTable({
                 const absentStudents = totalStudents - presentStudents;
                 const attendanceRate = totalStudents > 0 ? ((presentStudents / totalStudents) * 100).toFixed(1) : "0.0";
                 
-                // Calculate average confidence for recognized students only
                 const recognizedStudents = session.students?.filter(st => st.recognized) || [];
                 const avgConfidence = recognizedStudents.length > 0 
                   ? recognizedStudents.reduce((sum, st) => sum + (st.confidence || 0), 0) / recognizedStudents.length 
@@ -600,7 +800,8 @@ function ReportsTable({
                         title="Download student details for this session"
                       >
                         <Download className="h-4 w-4" />
-                        <span>Students CSV</span>
+                        <span className="hidden lg:inline">Students CSV</span>
+                        <span className="lg:hidden">CSV</span>
                       </Button>
                     </td>
                   </tr>

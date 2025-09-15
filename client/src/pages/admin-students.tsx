@@ -1,3 +1,4 @@
+// ===== ADMIN STUDENTS - Mobile Fixed =====
 "use client";
 
 import { useState } from "react";
@@ -9,10 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { GraduationCap, UserPlus, Users, Trash2, RefreshCw } from "lucide-react";
+import { GraduationCap, UserPlus, Users, Trash2, RefreshCw, Menu } from "lucide-react";
 import Sidebar from "@/components/admin/sidebar";
 
-// ---------- Types ----------
 interface Class {
   id: string;
   name: string;
@@ -38,14 +38,6 @@ interface Student {
   createdAt?: string;
 }
 
-interface ClassEnrollment {
-  id: string;
-  classId: string;
-  studentId: string;
-  enrolledAt: string;
-}
-
-// ---------- Helper API ----------
 const apiRequest = async (method: string, url: string, body?: any) => {
   const token = localStorage.getItem("authToken");
   const options: RequestInit = {
@@ -61,15 +53,13 @@ const apiRequest = async (method: string, url: string, body?: any) => {
   return response;
 };
 
-// ---------- Component ----------
 export default function AdminStudents() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<string>("");
 
-  // Fetch classes
   const { data: classes = [], isLoading: classesLoading } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
@@ -79,57 +69,49 @@ export default function AdminStudents() {
     },
   });
 
-// Fetch all students
-// Fetch all students
-const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
-  queryKey: ["/api/students"],
-  queryFn: async () => {
-    const res = await apiRequest("GET", "/api/students");
-    const data = await res.json();
-    // Support both { students: [...] } and [] directly
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.students)) return data.students;
-    return [];
-  },
-});
+  const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
+    queryKey: ["/api/students"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/students");
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.students)) return data.students;
+      return [];
+    },
+  });
 
-// Fetch students enrolled in selected class
-const { data: classStudents = [] } = useQuery<Student[]>({
-  queryKey: ["/api/classes", selectedClass, "students"],
-  queryFn: async () => {
-    const res = await apiRequest("GET", `/api/classes/${selectedClass}/students`);
-    const data = await res.json();
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.students)) return data.students;
-    return [];
-  },
-  enabled: !!selectedClass,
-});
+  const { data: classStudents = [] } = useQuery<Student[]>({
+    queryKey: ["/api/classes", selectedClass, "students"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/classes/${selectedClass}/students`);
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.students)) return data.students;
+      return [];
+    },
+    enabled: !!selectedClass,
+  });
 
+  const enrollStudentMutation = useMutation({
+    mutationFn: async (data: { studentId: string; classId: string }) => {
+      const response = await apiRequest(
+        "POST",
+        `/api/classes/${data.classId}/enroll`,
+        { studentId: data.studentId }
+      );
+      const resData = await response.json();
+      return resData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
+      toast({ title: "Student enrolled successfully" });
+      setIsEnrollDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to enroll student", variant: "destructive" });
+    },
+  });
 
-  // Mutation: enroll student
-const enrollStudentMutation = useMutation({
-  mutationFn: async (data: { studentId: string; classId: string }) => {
-    const response = await apiRequest(
-      "POST",
-      `/api/classes/${data.classId}/enroll`,
-      { studentId: data.studentId } // pass studentId in the body
-    );
-    const resData = await response.json();
-    return resData;
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClass, "students"] });
-    toast({ title: "Student enrolled successfully" });
-    setIsEnrollDialogOpen(false);
-  },
-  onError: (error: Error) => {
-    toast({ title: "Error", description: error.message || "Failed to enroll student", variant: "destructive" });
-  },
-});
-
-
-  // Mutation: unenroll student (disabled)
   const unenrollStudentMutation = useMutation({
     mutationFn: async (data: { studentId: string; classId: string }) => {
       throw new Error("Unenroll endpoint not implemented in backend");
@@ -138,7 +120,6 @@ const enrollStudentMutation = useMutation({
     onError: (error: Error) => toast({ title: "Error", description: error.message || "Failed to unenroll student", variant: "destructive" }),
   });
 
-  // Handle enroll form submission
   const handleEnroll = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -146,7 +127,6 @@ const enrollStudentMutation = useMutation({
     if (studentId && selectedClass) enrollStudentMutation.mutate({ studentId, classId: selectedClass });
   };
 
-  // Show all students with label for already enrolled
   const availableStudentsWithLabel = students.map(student => {
     const isEnrolled = classStudents.some(s => s.id === student.id);
     return { ...student, label: isEnrolled ? `${student.name} (Already Enrolled)` : student.name };
@@ -154,31 +134,42 @@ const enrollStudentMutation = useMutation({
 
   const selectedClassData = classes.find(c => c.id === selectedClass);
 
-  // ---------- UI ----------
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="bg-white shadow-sm border-b border-slate-200 px-4 sm:px-6 py-4">
           <div className="flex items-center space-x-3">
-            <GraduationCap className="w-6 h-6 text-slate-600" />
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900" data-testid="text-page-title">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden p-2"
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 flex-shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate" data-testid="text-page-title">
                 Student Enrollment
               </h1>
-              <p className="text-slate-600">Manage student enrollments in classes</p>
+              <p className="text-xs sm:text-base text-slate-600 hidden sm:block">Manage student enrollments in classes</p>
             </div>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {/* Class Selection */}
             <Card>
               <CardHeader>
-                <CardTitle>Select Class</CardTitle>
+                <CardTitle className="text-base sm:text-lg">Select Class</CardTitle>
               </CardHeader>
               <CardContent>
                 {classesLoading ? (
@@ -193,7 +184,10 @@ const enrollStudentMutation = useMutation({
                     <SelectContent>
                       {classes.map(c => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.code}) {c.teacher && `- ${c.teacher.user.name}`}
+                          <div className="flex flex-col">
+                            <span>{c.name} ({c.code})</span>
+                            {c.teacher && <span className="text-xs text-slate-500">- {c.teacher.user.name}</span>}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -206,25 +200,24 @@ const enrollStudentMutation = useMutation({
             {selectedClass && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle data-testid="text-selected-class">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="min-w-0">
+                      <CardTitle data-testid="text-selected-class" className="text-base sm:text-lg truncate">
                         {selectedClassData?.name} Enrollments
                       </CardTitle>
-                      <p className="text-sm text-slate-600 mt-1">
+                      <p className="text-xs sm:text-sm text-slate-600 mt-1">
                         Manage students enrolled in this class
                       </p>
                     </div>
 
-                    {/* Enroll Student Button */}
                     <Dialog open={isEnrollDialogOpen} onOpenChange={setIsEnrollDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button data-testid="button-enroll-student">
+                        <Button data-testid="button-enroll-student" className="w-full sm:w-auto whitespace-nowrap">
                           <UserPlus className="w-4 h-4 mr-2" />
                           Enroll Student
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="w-[95vw] max-w-md mx-auto max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                           <DialogTitle>Enroll Student</DialogTitle>
                         </DialogHeader>
@@ -243,7 +236,10 @@ const enrollStudentMutation = useMutation({
                                 <SelectContent>
                                   {availableStudentsWithLabel.map(student => (
                                     <SelectItem key={student.id} value={student.id}>
-                                      {student.label} ({student.studentId})
+                                      <div className="flex flex-col">
+                                        <span className="truncate">{student.label}</span>
+                                        <span className="text-xs text-slate-500">ID: {student.studentId}</span>
+                                      </div>
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -273,9 +269,9 @@ const enrollStudentMutation = useMutation({
                   {classStudents.length === 0 ? (
                     <div className="text-center py-8">
                       <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-slate-900 mb-2">No students enrolled</h3>
-                      <p className="text-slate-500 mb-4">Start by enrolling students in this class</p>
-                      <Button onClick={() => setIsEnrollDialogOpen(true)}>
+                      <h3 className="text-base sm:text-lg font-medium text-slate-900 mb-2">No students enrolled</h3>
+                      <p className="text-slate-500 mb-4 text-sm sm:text-base">Start by enrolling students in this class</p>
+                      <Button onClick={() => setIsEnrollDialogOpen(true)} className="w-full sm:w-auto">
                         <UserPlus className="w-4 h-4 mr-2" />
                         Enroll First Student
                       </Button>
@@ -285,27 +281,25 @@ const enrollStudentMutation = useMutation({
                       {classStudents.map(student => (
                         <div
                           key={student.id}
-                          className="flex items-center justify-between p-4 border border-slate-200 rounded-lg"
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border border-slate-200 rounded-lg space-y-3 sm:space-y-0 gap-4"
                         >
-                          <div className="flex items-center space-x-4">
-                            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center">
+                          <div className="flex items-start sm:items-center space-x-4 min-w-0">
+                            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
                               <GraduationCap className="w-5 h-5 text-slate-600" />
                             </div>
-                            <div>
-                              <h4 className="font-medium text-slate-900" data-testid={`text-student-name-${student.id}`}>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-medium text-slate-900 truncate" data-testid={`text-student-name-${student.id}`}>
                                 {student.name}
                               </h4>
-                              <p className="text-sm text-slate-500">
-                                Student ID: {student.studentId} | Roll No: {student.rollNo}
-                              </p>
-                              {student.email && <p className="text-xs text-slate-400">{student.email}</p>}
+                              <div className="text-sm text-slate-500 space-y-1">
+                                <div className="break-words">Student ID: {student.studentId} | Roll: {student.rollNo}</div>
+                                <div className="break-words">Program: {student.program} | Year: {student.yearLevel}</div>
+                                {student.email && <div className="text-xs text-slate-400 break-words">{student.email}</div>}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-3">
-                            <Badge variant="default">Enrolled</Badge>
-                            <p className="text-xs text-slate-500">
-                              Program: {student.program} | Year: {student.yearLevel}
-                            </p>
+                          <div className="flex items-center justify-between sm:justify-end space-x-3 flex-shrink-0">
+                            <Badge variant="default" className="text-xs">Enrolled</Badge>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -313,8 +307,9 @@ const enrollStudentMutation = useMutation({
                               disabled
                               data-testid={`button-unenroll-${student.id}`}
                               title="Unenroll endpoint not implemented"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2"
                             >
-                              <Trash2 className="w-4 h-4 text-red-500" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
@@ -329,8 +324,8 @@ const enrollStudentMutation = useMutation({
               <Card>
                 <CardContent className="text-center py-12">
                   <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-slate-900 mb-2">Select a class</h3>
-                  <p className="text-slate-500">Choose a class from the dropdown above to manage student enrollments</p>
+                  <h3 className="text-base sm:text-lg font-medium text-slate-900 mb-2">Select a class</h3>
+                  <p className="text-slate-500 text-sm sm:text-base">Choose a class from the dropdown above to manage student enrollments</p>
                 </CardContent>
               </Card>
             )}

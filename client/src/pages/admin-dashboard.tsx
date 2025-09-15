@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -11,7 +13,6 @@ import CreateStudentModal from "@/components/admin/create-student-modal";
 import CreateAdminModal from "@/components/admin/create-admin-modal";
 import CredentialModal from "@/components/admin/credential-modal";
 
-// Helper function to make authenticated API requests
 const apiRequest = async (method: string, url: string, body?: any) => {
   const token = localStorage.getItem("authToken");
   const options: RequestInit = {
@@ -22,11 +23,8 @@ const apiRequest = async (method: string, url: string, body?: any) => {
     },
     ...(body && { body: JSON.stringify(body) }),
   };
-  
   const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response;
 };
 
@@ -36,50 +34,54 @@ export default function AdminDashboard() {
   const [showCreateStudent, setShowCreateStudent] = useState(false);
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
   const [showCredentialModal, setShowCredentialModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     const token = localStorage.getItem("authToken");
-    if (!token) {
-      setLocation("/login");
-    }
+    if (!token) setLocation("/login");
   }, [setLocation]);
 
-  // ----------------- Queries -----------------
-  
-  // No need for separate stats query - StatsCards component handles this internally
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/users");
-      return await response.json();
+      return response.json();
     },
-    staleTime: 60 * 1000, // 1 minute
+    staleTime: 60 * 1000,
   });
 
   const { data: currentUser } = useQuery({
     queryKey: ["/api/auth/me"],
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/auth/me");
-      return await response.json();
+      return response.json();
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
   });
 
   if (usersLoading) {
     return (
-      <div className="flex h-screen bg-slate-50">
-        <Sidebar currentUser={currentUser} />
-        <div className="flex-1 flex flex-col min-h-0">
-          <Header
-            title="Dashboard"
-            subtitle="Loading..."
-            onCreateTeacher={() => {}}
-            onCreateStudent={() => {}}
-            onCreateAdmin={() => {}}
-            showActions={false}
+      <div className="flex flex-col h-screen bg-slate-50">
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
           />
-          <main className="flex-1 overflow-y-auto p-6">
+        )}
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header
+  title="Dashboard"
+  subtitle="Loading..."
+  onCreateTeacher={() => {}}
+  onCreateStudent={() => {}}
+  onCreateAdmin={() => {}}
+  onMenuClick={() => setIsSidebarOpen(true)}
+  showActions={false}
+/>
+
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 mt-[72px]">
             <div className="animate-pulse space-y-4">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-gray-200 h-32 rounded-lg"></div>
@@ -92,29 +94,36 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <Sidebar currentUser={currentUser} />
-      <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
+      {/* Sidebar overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Fixed header on mobile */}
         <Header
           title="Dashboard"
           subtitle="Manage users, classes, and system settings"
           onCreateTeacher={() => setShowCreateTeacher(true)}
           onCreateStudent={() => setShowCreateStudent(true)}
           onCreateAdmin={() => setShowCreateAdmin(true)}
+          onMenuClick={() => setIsSidebarOpen(true)}
         />
 
-        <main className="flex-1 overflow-y-auto p-6">
-          {/* StatsCards component handles its own data fetching */}
+        {/* Scrollable main content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6  lg:mt-0">
           <div className="mb-6">
             <StatsCards userRole="admin" />
           </div>
-          
-          <div className="gap-6">
-            <RecentUsers
-              users={users}
-              onViewAll={() => setLocation("/admin/users")}
-            />
-          </div>
+          <RecentUsers
+            users={users}
+            onViewAll={() => setLocation("/admin/users")}
+          />
         </main>
       </div>
 

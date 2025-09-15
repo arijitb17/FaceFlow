@@ -252,18 +252,18 @@ export default function StatsCards({ userRole, userId, prevStats }: StatsCardsPr
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         {[1, 2, 3, 4].map((index) => (
           <Card key={index} className="shadow-sm border-2 animate-pulse">
-            <CardContent className="p-6">
+            <CardContent className="p-4 md:p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+                  <div className="h-3 md:h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-6 md:h-8 bg-gray-300 rounded w-1/2"></div>
                 </div>
-                <div className="w-14 h-14 bg-gray-200 rounded-xl"></div>
+                <div className="w-10 h-10 md:w-14 md:h-14 bg-gray-200 rounded-xl"></div>
               </div>
-              <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-3 md:h-4 bg-gray-200 rounded w-1/3"></div>
             </CardContent>
           </Card>
         ))}
@@ -273,9 +273,9 @@ export default function StatsCards({ userRole, userId, prevStats }: StatsCardsPr
 
   if (error) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Card className="col-span-full shadow-sm border-2 border-red-200">
-          <CardContent className="p-6 text-center">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        <Card className="col-span-2 md:col-span-4 shadow-sm border-2 border-red-200">
+          <CardContent className="p-4 md:p-6 text-center">
             <p className="text-red-600 font-medium">Error loading stats</p>
             <p className="text-gray-500 text-sm mt-1">{error}</p>
             <button 
@@ -291,7 +291,7 @@ export default function StatsCards({ userRole, userId, prevStats }: StatsCardsPr
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
       {cards.map((card: StatCard) => {
         const IconComponent = card.icon;
         const changeColor: string = getChangeColor(card.change);
@@ -302,26 +302,26 @@ export default function StatsCards({ userRole, userId, prevStats }: StatsCardsPr
             className={`shadow-sm border-2 ${card.borderColor} hover:shadow-md transition-shadow`} 
             data-testid={card.testId}
           >
-            <CardContent className="p-6">
+            <CardContent className="p-4 md:p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex-1">
-                  <p className="text-gray-600 text-sm font-medium mb-1">
+                  <p className="text-gray-600 text-xs md:text-sm font-medium mb-1">
                     {card.title}
                   </p>
                   <p 
-                    className="text-3xl font-bold text-gray-900" 
+                    className="text-xl md:text-3xl font-bold text-gray-900" 
                     data-testid={`${card.testId}-value`}
                   >
                     {card.value}
                   </p>
                 </div>
-                <div className={`w-14 h-14 ${card.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                  <IconComponent className={`${card.iconColor} w-7 h-7`} />
+                <div className={`w-10 h-10 md:w-14 md:h-14 ${card.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                  <IconComponent className={`${card.iconColor} w-5 h-5 md:w-7 md:h-7`} />
                 </div>
               </div>
               <div className="flex items-center">
                 <span 
-                  className={`text-sm font-medium ${changeColor}`}
+                  className={`text-xs md:text-sm font-medium ${changeColor}`}
                   data-testid={`${card.testId}-change`}
                 >
                   {card.change}

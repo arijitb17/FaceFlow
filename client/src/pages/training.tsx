@@ -5,12 +5,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
-import StatsCards from "@/components/stats/stats-cards"; // Fixed import
+import StatsCards from "@/components/stats/stats-cards";
 import BatchProcessingModal from "@/components/attendance/batch-processing-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Brain, CheckCircle, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Users, Brain, CheckCircle, XCircle, AlertTriangle, RefreshCw, Play, ChevronDown, ChevronUp } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // Types
 interface Student {
@@ -29,6 +32,7 @@ interface TrainingStatus {
   studentsWithPhotos: number;
   trainedStudents: number;
   needsTraining: boolean;
+  message?: string;
 }
 
 interface ProcessingResults {
@@ -47,6 +51,7 @@ export default function ModelTraining() {
   const [userName, setUserName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<"admin" | "teacher" | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showStudentsList, setShowStudentsList] = useState(false);
 
   useEffect(() => {
     async function fetchUser() {
@@ -86,12 +91,10 @@ export default function ModelTraining() {
   const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
     queryKey: ["teacher-students", userRole],
     queryFn: async () => {
-      // Use the endpoint that returns only teacher's students
       const endpoint = userRole === "admin" ? "/api/students" : "/api/students/my";
       const res = await apiRequest("GET", endpoint);
       const json = await parseJsonSafely(res);
       
-      // Handle different response structures
       const studentsList = json.students || json || [];
       if (!Array.isArray(studentsList)) return [];
 
@@ -117,19 +120,17 @@ export default function ModelTraining() {
       );
     },
     refetchInterval: 5000,
-    enabled: !!userRole, // Only fetch when we know the user role
+    enabled: !!userRole,
   });
 
-  // Fetch training status - now based on teacher's students only
+  // Fetch training status
   const { data: trainingStatus } = useQuery<TrainingStatus>({
     queryKey: ["training-status", students.length],
     queryFn: async () => {
       try {
-        // Calculate training status based on teacher's students
         const studentsWithPhotos = students.filter(s => s.photos.length > 0 || s.datasetFolderExists);
         const trainedStudents = students.filter(s => s.isTrainingComplete);
         
-        // Check if global training is in progress
         const res = await apiRequest("GET", "/api/face-recognition/training-status");
         const globalStatus = await parseJsonSafely(res);
         
@@ -158,7 +159,7 @@ export default function ModelTraining() {
       }
     },
     refetchInterval: 2000,
-    enabled: students.length > 0, // Only fetch when students are loaded
+    enabled: students.length > 0,
   });
 
   // Training mutation
@@ -198,7 +199,6 @@ export default function ModelTraining() {
     setShowModal(true);
   };
 
-  // Show loading state until user role is determined
   if (!userRole) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -218,16 +218,198 @@ export default function ModelTraining() {
           onMenuClick={() => setIsSidebarOpen(true)}
           userName={userName ?? "Loading..."} 
         />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          {/* Updated to use proper StatsCards component */}
-          <div className="mb-6">
+        
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
+          {/* Stats Cards */}
+          <div className="mb-4 sm:mb-6">
             <StatsCards
               userRole={userRole}
               userId={userRole === "teacher" ? userId ?? undefined : undefined}
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+          {/* Mobile Layout */}
+          <div className="block lg:hidden space-y-4">
+            {/* Training Progress - Mobile */}
+            {trainingStatus?.isTraining && (
+              <Card className="shadow-sm border border-gray-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center space-x-2 text-lg">
+                    <RefreshCw className="h-5 w-5 animate-spin" />
+                    <span>Training in Progress</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Progress value={trainingStatus.progress} className="w-full" />
+                    <p className="text-sm text-gray-600 text-center">
+                      {trainingStatus.progress}% complete - {trainingStatus.message || "Training model..."}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Training Overview - Mobile */}
+            <Card className="shadow-sm border border-gray-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center space-x-2 text-lg">
+                  <Brain className="h-5 w-5" />
+                  <span>Training Overview</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-3 gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-lg sm:text-2xl font-bold text-blue-600">{studentsWithPhotos.length}</p>
+                    <p className="text-xs text-gray-600">With Photos</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg sm:text-2xl font-bold text-green-600">{trainedStudents.length}</p>
+                    <p className="text-xs text-gray-600">Trained</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg sm:text-2xl font-bold text-orange-600">{untrainedStudents.length}</p>
+                    <p className="text-xs text-gray-600">Pending</p>
+                  </div>
+                </div>
+
+                {/* Training Actions */}
+                {untrainedStudents.length > 0 ? (
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => trainModelMutation.mutate()}
+                      disabled={trainingStatus?.isTraining || trainModelMutation.isPending || studentsWithPhotos.length === 0}
+                      size="lg"
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Brain className="mr-2 h-5 w-5" />
+                      {trainModelMutation.isPending
+                        ? "Starting Training..."
+                        : trainingStatus?.isTraining
+                        ? "Training in Progress..."
+                        : `Train Model (${untrainedStudents.length} students)`}
+                    </Button>
+
+                    <div className="text-xs text-gray-600 text-center">
+                      Training typically takes 2-5 minutes depending on the number of students.
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleBatchProcessingComplete}
+                      disabled={trainedStudents.length === 0}
+                      className="w-full"
+                    >
+                      Test Recognition (Demo)
+                    </Button>
+                  </div>
+                ) : studentsWithPhotos.length === 0 ? (
+                  <div className="text-center py-6">
+                    <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto mb-3" />
+                    <p className="text-base font-medium mb-2">No Student Photos Found</p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {userRole === "admin" ? "No students have uploaded photos yet." : "None of your students have uploaded photos yet."}
+                    </p>
+                    <Button variant="outline" onClick={() => window.location.href = "/admin/students"}>
+                      Go to Students
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-3" />
+                    <p className="text-base font-medium mb-2">Training Complete!</p>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {userRole === "admin" ? "All students are trained." : "All your students are trained and ready for recognition."}
+                    </p>
+                    <Button variant="outline" onClick={handleBatchProcessingComplete}>
+                      Test Recognition
+                    </Button>
+                  </div>
+                )}
+
+                {trainModelMutation.isError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700 text-sm">
+                      Training failed: {trainModelMutation.error?.message || "Unknown error"}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Students List - Mobile (Collapsible) */}
+            <Collapsible open={showStudentsList} onOpenChange={setShowStudentsList}>
+              <Card className="shadow-sm border border-gray-200">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="pb-3 cursor-pointer hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">
+                        {userRole === "admin" ? "All Students" : "Your Students"} ({students.length})
+                      </CardTitle>
+                      {showStudentsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    {studentsLoading ? (
+                      <div className="text-center py-6">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                        <p className="text-sm">Loading students...</p>
+                      </div>
+                    ) : students.length === 0 ? (
+                      <div className="text-center py-6 text-gray-500 text-sm">
+                        {userRole === "admin" ? "No students found." : "No students enrolled in your classes."}
+                      </div>
+                    ) : (
+                      <ScrollArea className="h-64">
+                        <div className="space-y-2">
+                          {students.map(student => (
+                            <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                {student.isTrainingComplete ? (
+                                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                ) : student.photos.length > 0 || student.datasetFolderExists ? (
+                                  <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium text-sm truncate">{student.name}</p>
+                                  <p className="text-xs text-gray-600">ID: {student.studentId}</p>
+                                </div>
+                              </div>
+                              <Badge
+                                variant={
+                                  student.isTrainingComplete
+                                    ? "default"
+                                    : student.photos.length > 0 || student.datasetFolderExists
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                                className="text-xs flex-shrink-0"
+                              >
+                                {student.isTrainingComplete
+                                  ? "Trained"
+                                  : student.photos.length > 0 || student.datasetFolderExists
+                                  ? "Needs Training"
+                                  : "No Photos"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden lg:grid lg:grid-cols-3 gap-4 lg:gap-6">
             {/* Left Column */}
             <div className="lg:col-span-2 space-y-4">
               {trainingStatus?.isTraining && (
@@ -240,12 +422,7 @@ export default function ModelTraining() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div
-                          className="bg-blue-600 h-3 rounded-full transition-all duration-500"
-                          style={{ width: `${trainingStatus.progress}%` }}
-                        />
-                      </div>
+                      <Progress value={trainingStatus.progress} className="w-full" />
                       <p className="text-sm text-gray-600 text-center">
                         {trainingStatus.progress}% complete
                       </p>
@@ -340,7 +517,7 @@ export default function ModelTraining() {
               </Card>
             </div>
 
-            {/* Right Column - Now shows only teacher's students */}
+            {/* Right Column - Desktop Students List */}
             <div className="space-y-4">
               <Card>
                 <CardHeader>

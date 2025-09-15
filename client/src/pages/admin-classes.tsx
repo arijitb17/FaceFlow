@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -33,7 +35,8 @@ import {
   Calendar,
   Edit,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Menu
 } from "lucide-react";
 import Sidebar from "@/components/admin/sidebar";
 
@@ -60,7 +63,6 @@ interface Teacher {
   user: { name: string; email: string };
 }
 
-// Helper function to make authenticated API requests
 const apiRequest = async (method: string, url: string, body?: any) => {
   const token = localStorage.getItem("authToken");
   const options: RequestInit = {
@@ -71,7 +73,7 @@ const apiRequest = async (method: string, url: string, body?: any) => {
     },
     ...(body && { body: JSON.stringify(body) }),
   };
-  
+
   const response = await fetch(url, options);
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -85,6 +87,7 @@ export default function AdminClasses() {
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Fetch classes
   const { data: classes = [], isLoading } = useQuery<Class[]>({
@@ -124,11 +127,9 @@ export default function AdminClasses() {
     }
   });
 
-  // Update class mutation - Fixed to use PUT instead of non-existent endpoint
+  // Update class mutation
   const updateClassMutation = useMutation({
     mutationFn: async ({ id, ...updates }: any) => {
-      // Since there's no PUT endpoint in routes, we'll need to handle this differently
-      // For now, throwing an error to indicate this needs backend implementation
       throw new Error("Update class endpoint not implemented in backend");
     },
     onSuccess: () => {
@@ -145,10 +146,9 @@ export default function AdminClasses() {
     }
   });
 
-  // Delete class mutation - Fixed to use DELETE endpoint
+  // Delete class mutation
   const deleteClassMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Since there's no DELETE endpoint in routes, we'll need to handle this differently
       throw new Error("Delete class endpoint not implemented in backend");
     },
     onSuccess: () => {
@@ -179,25 +179,47 @@ export default function AdminClasses() {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <BookOpen className="w-6 h-6 text-slate-600" />
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Classes Management</h1>
-                <p className="text-slate-600">Manage courses and class schedules</p>
+      {/* Mobile sidebar overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-slate-200 px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center space-x-3 min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="lg:hidden p-2"
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                <Menu className="w-5 h-5" />
+              </Button>
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 flex-shrink-0" />
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 truncate">Classes</h1>
+                <p className="text-xs sm:text-base text-slate-600 hidden sm:block truncate">
+                  Manage courses and class schedules
+                </p>
               </div>
             </div>
+
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Class
+                <Button className="flex items-center gap-2 whitespace-nowrap w-full sm:w-auto">
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Add Class</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+
+              <DialogContent className="w-[95vw] max-w-md mx-auto max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                 <DialogHeader>
                   <DialogTitle>Create New Class</DialogTitle>
                 </DialogHeader>
@@ -212,7 +234,7 @@ export default function AdminClasses() {
                   </div>
                   <div>
                     <Label htmlFor="description">Description</Label>
-                    <Textarea id="description" name="description" />
+                    <Textarea id="description" name="description" className="min-h-[80px] resize-none" />
                   </div>
                   <div>
                     <Label htmlFor="teacherId">Teacher</Label>
@@ -221,18 +243,28 @@ export default function AdminClasses() {
                         <SelectValue placeholder="Select teacher" />
                       </SelectTrigger>
                       <SelectContent>
-                        {teachers.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.user.name}</SelectItem>
+                        {teachers.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.user.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label htmlFor="schedule">Schedule</Label>
-                    <Input id="schedule" name="schedule" placeholder="e.g., Mon/Wed/Fri 10:00-11:30" />
+                    <Input
+                      id="schedule"
+                      name="schedule"
+                      placeholder="e.g., Mon/Wed/Fri 10:00-11:30"
+                    />
                   </div>
-                  <Button type="submit" className="w-full">
-                    {createClassMutation.isPending ? <RefreshCw className="animate-spin w-4 h-4 mr-2" /> : null}
+                  <Button 
+                    type="submit" 
+                    className="w-full flex items-center justify-center gap-2"
+                    disabled={createClassMutation.isPending}
+                  >
+                    {createClassMutation.isPending && <RefreshCw className="animate-spin w-4 h-4" />}
                     Create Class
                   </Button>
                 </form>
@@ -241,27 +273,29 @@ export default function AdminClasses() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6">
+        {/* Main content */}
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <RefreshCw className="animate-spin w-6 h-6 text-slate-400" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {classes.map(classItem => (
-                <Card key={classItem.id} className="hover:shadow-md transition-shadow">
+                <Card key={classItem.id} className="w-full hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{classItem.name}</CardTitle>
-                        <Badge variant="secondary" className="mt-1">{classItem.code}</Badge>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base sm:text-lg truncate">{classItem.name}</CardTitle>
+                        <Badge variant="secondary" className="mt-1 text-xs">{classItem.code}</Badge>
                       </div>
-                      <div className="flex space-x-1">
+                      <div className="flex space-x-1 flex-shrink-0">
                         <Button 
                           variant="ghost" 
                           size="sm" 
                           onClick={() => setEditingClass(classItem)}
-                          disabled // Disabled until backend implements update endpoint
+                          disabled
+                          className="p-2"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -269,7 +303,8 @@ export default function AdminClasses() {
                           variant="ghost" 
                           size="sm" 
                           onClick={() => deleteClassMutation.mutate(classItem.id)}
-                          disabled // Disabled until backend implements delete endpoint
+                          disabled
+                          className="p-2"
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
@@ -277,22 +312,22 @@ export default function AdminClasses() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center space-x-2 text-sm text-slate-600">
-                      <Users className="w-4 h-4" />
-                      <span>{classItem.teacher?.user?.name || "No teacher assigned"}</span>
+                    <div className="flex items-center space-x-2 text-sm text-slate-600 truncate">
+                      <Users className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{classItem.teacher?.user?.name || "No teacher assigned"}</span>
                     </div>
                     {classItem.schedule && (
-                      <div className="flex items-center space-x-2 text-sm text-slate-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>{classItem.schedule}</span>
+                      <div className="flex items-center space-x-2 text-sm text-slate-600 truncate">
+                        <Calendar className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{classItem.schedule}</span>
                       </div>
                     )}
                     {classItem.description && (
                       <p className="text-sm text-slate-600 line-clamp-2">{classItem.description}</p>
                     )}
-                    <div className="flex justify-between items-center text-xs text-slate-500">
+                    <div className="flex justify-between items-center text-xs text-slate-500 pt-2 border-t">
                       <span>{new Date(classItem.createdAt).toLocaleDateString()}</span>
-                      <Badge variant={classItem.isActive ? "default" : "secondary"}>
+                      <Badge variant={classItem.isActive ? "default" : "secondary"} className="text-xs">
                         {classItem.isActive ? "Active" : "Inactive"}
                       </Badge>
                     </div>
@@ -305,7 +340,7 @@ export default function AdminClasses() {
 
         {/* Edit Dialog */}
         <Dialog open={editingClass !== null} onOpenChange={() => setEditingClass(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="w-[95vw] max-w-md mx-auto max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Edit Class</DialogTitle>
             </DialogHeader>
@@ -321,7 +356,12 @@ export default function AdminClasses() {
                 </div>
                 <div>
                   <Label htmlFor="edit-description">Description</Label>
-                  <Textarea id="edit-description" name="description" defaultValue={editingClass.description || ""} />
+                  <Textarea 
+                    id="edit-description" 
+                    name="description" 
+                    defaultValue={editingClass.description || ""} 
+                    className="min-h-[80px] resize-none"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="edit-teacherId">Teacher</Label>

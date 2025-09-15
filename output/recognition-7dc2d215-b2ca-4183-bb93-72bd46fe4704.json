@@ -1,0 +1,131 @@
+{
+  "success": true,
+  "totalImages": 5,
+  "totalFacesDetected": 10,
+  "recognizedStudents": [
+    "demo_student"
+  ],
+  "averageConfidence": 0.708819043636322,
+  "results": [
+    {
+      "imageIndex": 0,
+      "faceIndex": 0,
+      "bbox": [
+        370,
+        188,
+        423,
+        249
+      ],
+      "confidence": 0.7120522856712341,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 0,
+      "faceIndex": 1,
+      "bbox": [
+        230,
+        176,
+        278,
+        233
+      ],
+      "confidence": 0,
+      "studentId": null
+    },
+    {
+      "imageIndex": 1,
+      "faceIndex": 0,
+      "bbox": [
+        368,
+        188,
+        421,
+        248
+      ],
+      "confidence": 0.7382040619850159,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 1,
+      "faceIndex": 1,
+      "bbox": [
+        229,
+        173,
+        277,
+        230
+      ],
+      "confidence": 0,
+      "studentId": null
+    },
+    {
+      "imageIndex": 2,
+      "faceIndex": 0,
+      "bbox": [
+        369,
+        182,
+        422,
+        241
+      ],
+      "confidence": 0.6757085919380188,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 2,
+      "faceIndex": 1,
+      "bbox": [
+        231,
+        168,
+        278,
+        225
+      ],
+      "confidence": 0,
+      "studentId": null
+    },
+    {
+      "imageIndex": 3,
+      "faceIndex": 0,
+      "bbox": [
+        368,
+        183,
+        421,
+        244
+      ],
+      "confidence": 0.685147225856781,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 3,
+      "faceIndex": 1,
+      "bbox": [
+        229,
+        167,
+        276,
+        224
+      ],
+      "confidence": 0,
+      "studentId": null
+    },
+    {
+      "imageIndex": 4,
+      "faceIndex": 0,
+      "bbox": [
+        366,
+        184,
+        419,
+        245
+      ],
+      "confidence": 0.7329830527305603,
+      "studentId": "demo_student"
+    },
+    {
+      "imageIndex": 4,
+      "faceIndex": 1,
+      "bbox": [
+        228,
+        170,
+        275,
+        227
+      ],
+      "confidence": 0,
+      "studentId": null
+    }
+  ]
+}
