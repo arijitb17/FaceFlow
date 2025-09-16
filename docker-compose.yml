@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"  # Frontend + API on the same port
+    env_file:
+      - .env
+    volumes:
+      - ./dataset:/app/dataset
+      - ./attached_assets:/app/attached_assets
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
